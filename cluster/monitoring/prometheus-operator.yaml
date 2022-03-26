@@ -50,10 +50,6 @@ spec:
       enabled: false
     kubelet:
       enabled: false
-    grafana:
-      sidecar:
-        dashboards:
-          searchNamespace: ALL
     prometheus:
       prometheusSpec:
         serviceMonitorSelectorNilUsesHelmValues: false

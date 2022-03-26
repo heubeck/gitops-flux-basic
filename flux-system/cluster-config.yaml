@@ -6,17 +6,10 @@ metadata:
   namespace: flux-system
 spec:
   interval: 1m0s
-  path: ./cluster
+  path: ./cluster-config
   sourceRef:
     kind: GitRepository
     name: flux-system
   prune: true
   timeout: 2m
   validation: client
-  healthChecks:
-    - kind: Deployment
-      name: prometheus-operator-kube-p-operator
-      namespace: monitoring
-    - kind: Deployment
-      name: prometheus-operator-grafana
-      namespace: monitoring

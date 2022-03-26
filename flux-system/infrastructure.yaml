@@ -1,0 +1,45 @@
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1beta2
+kind: Kustomization
+metadata:
+  name: infrastructure
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: cluster-config
+  interval: 1m0s
+  path: ./infrastructure
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  prune: true
+  wait: true
+  timeout: 3m
+  validation: client
+  healthChecks:
+    - kind: Deployment
+      name: prometheus-operator-kube-p-operator
+      namespace: monitoring
+    - kind: Deployment
+      name: prometheus-operator-grafana
+      namespace: monitoring
+    - kind: HelmRelease
+      name: prometheus-operator
+      namespace: monitoring
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1beta2
+kind: Kustomization
+metadata:
+  name: infrastructure-config
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: infrastructure
+  interval: 1m0s
+  path: ./infrastructure-config
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  prune: true
+  timeout: 2m
+  validation: client

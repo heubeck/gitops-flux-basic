@@ -16,4 +16,4 @@ spec:
   interval: 1m
   values:
     echo:
-      text: foobar
+      text: foo_bar

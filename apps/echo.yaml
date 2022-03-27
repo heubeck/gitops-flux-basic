@@ -1,0 +1,19 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: echo
+  namespace: apps
+spec:
+  releaseName: echo
+  chart:
+    spec:
+      chart: ./charts/echo
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
+        namespace: flux-system
+  interval: 1m
+  values:
+    echo:
+      text: foobar

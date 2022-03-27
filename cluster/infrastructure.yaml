@@ -17,26 +17,27 @@ spec:
   validation: client
   healthChecks:
     # acme
-    - kind: HelmRelease
-      name: cert-manager
-      namespace: acme
     - kind: Deployment
       name: cert-manager
       namespace: acme
     # monitoring
-    - kind: HelmRelease
-      name: prometheus-operator
-      namespace: monitoring
     - kind: Deployment
       name: prometheus-operator-kube-p-operator
       namespace: monitoring
     - kind: Deployment
       name: prometheus-operator-grafana
       namespace: monitoring
+    # linkerd
+    - kind: Deployment
+      name: linkerd-destination
+      namespace: linkerd
+    - kind: Deployment
+      name: linkerd-identity
+      namespace: linkerd
+    - kind: Deployment
+      name: linkerd-proxy-injector
+      namespace: linkerd
     # ingress
-    - kind: HelmRelease
-      name: ingress-nginx
-      namespace: ingress
     - kind: Deployment
       name: ingress-nginx-controller
       namespace: ingress

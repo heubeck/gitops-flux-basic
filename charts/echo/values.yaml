@@ -1,0 +1,30 @@
+replicaCount: 1
+
+echo:
+  text: foobar
+
+image:
+  repository: hashicorp/http-echo
+  pullPolicy: IfNotPresent
+  tag: "0.2.3"
+
+service:
+  type: ClusterIP
+  port: 80
+
+container:
+  port: 5678
+
+resources:
+  limits:
+    cpu: 100m
+    memory: 128Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 2
+  targetCPUUtilizationPercentage: 80

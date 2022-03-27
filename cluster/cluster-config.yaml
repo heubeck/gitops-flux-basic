@@ -5,11 +5,11 @@ metadata:
   name: cluster-config
   namespace: flux-system
 spec:
-  interval: 1m0s
+  interval: 2m0s
   path: ./cluster-config
   sourceRef:
     kind: GitRepository
     name: flux-system
   prune: true
-  timeout: 2m
+  timeout: 1m
   validation: client

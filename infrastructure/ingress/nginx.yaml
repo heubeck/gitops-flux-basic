@@ -30,6 +30,11 @@ spec:
     crds: CreateReplace
   values:
     controller:
+      publishService:
+        enabled: false
+      extraArgs:
+        watch-ingress-without-class: "true"
+        publish-status-address: "localhost"
       hostPort:
         enabled: true
       service:
@@ -37,8 +42,8 @@ spec:
         type: NodePort
         targetPorts:
           http: http
-        annotations:
-          kubernetes.io/ingress.global-static-ip-name: "ingress-address"
+      podAnnotations:
+        linkerd.io/inject: enabled
       nodeSelector:
         kubernetes.io/os: linux
         ingress-ready: "true"
@@ -48,5 +53,3 @@ spec:
           operator: Equal
       metrics:
         enabled: true
-        serviceMonitor:
-          enabled: true

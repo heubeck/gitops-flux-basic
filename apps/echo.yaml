@@ -17,3 +17,5 @@ spec:
   values:
     echo:
       text: foo_bar
+    canary:
+      enabled: true

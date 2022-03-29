@@ -3,4 +3,4 @@ kind: Kustomization
 resources:
 - linkerd.yaml
 - smi.yaml
-# - viz.yaml
+- viz.yaml

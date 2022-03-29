@@ -16,6 +16,6 @@ spec:
   interval: 1m
   values:
     echo:
-      text: yeahaa!
+      text: oh-yeah
     canary:
       enabled: true

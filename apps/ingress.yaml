@@ -4,6 +4,8 @@ kind: Ingress
 metadata:
   name: echo
   namespace: apps
+  annotations:
+    nginx.ingress.kubernetes.io/service-upstream: "true"
 spec:
   rules:
   - http:

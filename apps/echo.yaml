@@ -16,6 +16,6 @@ spec:
   interval: 1m
   values:
     echo:
-      text: foo_bar
+      text: this-rockx
     canary:
       enabled: true

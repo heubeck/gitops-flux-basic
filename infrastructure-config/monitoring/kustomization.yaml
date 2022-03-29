@@ -12,3 +12,15 @@ configMapGenerator:
     options:
       labels:
         grafana_dashboard: "1"
+  - name: linkerd-grafana-dashboards
+    namespace: monitoring
+    files:
+      - dashboards/deployment.json
+      - dashboards/health.json
+      - dashboards/pod.json
+      - dashboards/route.json
+      - dashboards/service.json
+      - dashboards/top-line.json
+    options:
+      labels:
+        grafana_dashboard: "1"

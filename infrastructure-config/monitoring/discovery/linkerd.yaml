@@ -63,7 +63,8 @@ spec:
   selector:
     matchLabels: {}
   podMetricsEndpoints:
-    - relabelings:
+    - interval: 10s
+      relabelings:
       - sourceLabels:
         - __meta_kubernetes_pod_container_name
         - __meta_kubernetes_pod_container_port_name

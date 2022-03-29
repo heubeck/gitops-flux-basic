@@ -16,6 +16,6 @@ spec:
   interval: 1m
   values:
     echo:
-      text: this-rockx
+      text: hell-yeah!
     canary:
       enabled: true

@@ -16,14 +16,17 @@ spec:
     metadata:
       labels:
         {{- include "echo.selectorLabels" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
     spec:
       serviceAccountName: {{ include "echo.name" . }}
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          args:
-            - "-text={{ .Values.echo.text }}"
+          envFrom:
+            - configMapRef:
+                name: {{ include "echo.name" . }}
           ports:
             - name: http
               containerPort: {{ .Values.container.port }}

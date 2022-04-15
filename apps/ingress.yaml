@@ -11,9 +11,9 @@ spec:
   - http:
       paths:
       - pathType: Prefix
-        path: "/echo"
+        path: "/examine"
         backend:
           service:
-            name: echo
+            name: examiner
             port:
               number: 80

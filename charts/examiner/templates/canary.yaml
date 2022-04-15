@@ -28,6 +28,10 @@ spec:
     # container port number or name (optional)
     targetPort: http
   analysis:
+    webhooks:
+      - name: "Event Log"
+        type: event
+        url: http://logger.flagger
     # schedule interval (default 60s)
     interval: 30s
     # max number of failed metric checks before rollback

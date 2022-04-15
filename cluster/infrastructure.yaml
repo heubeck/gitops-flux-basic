@@ -37,7 +37,3 @@ spec:
     - kind: Deployment
       name: linkerd-proxy-injector
       namespace: linkerd
-    # ingress
-    - kind: Deployment
-      name: ingress-nginx-controller
-      namespace: ingress

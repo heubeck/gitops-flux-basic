@@ -13,5 +13,29 @@ spec:
     kind: GitRepository
     name: flux-system
   prune: true
-  timeout: 1m
+  timeout: 5m
   validation: client
+  healthChecks:
+    # ingress
+    - kind: Deployment
+      name: ingress-nginx-controller
+      namespace: ingress
+    # linkerd
+    - kind: Deployment
+      name: smi-adaptor
+      namespace: linkerd-smi
+    - kind: Deployment
+      name: metrics-api
+      namespace: linkerd-viz
+    - kind: Deployment
+      name: prometheus
+      namespace: linkerd-viz
+    - kind: Deployment
+      name: tap
+      namespace: linkerd-viz
+    - kind: Deployment
+      name: tap-injector
+      namespace: linkerd-viz
+    - kind: Deployment
+      name: web
+      namespace: linkerd-viz

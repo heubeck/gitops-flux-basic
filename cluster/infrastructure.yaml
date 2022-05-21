@@ -24,9 +24,6 @@ spec:
     - kind: Deployment
       name: prometheus-operator-kube-p-operator
       namespace: monitoring
-    - kind: Deployment
-      name: prometheus-operator-grafana
-      namespace: monitoring
     # linkerd
     - kind: Deployment
       name: linkerd-destination

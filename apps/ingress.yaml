@@ -11,7 +11,7 @@ spec:
   - http:
       paths:
       - pathType: Prefix
-        path: "/examine"
+        path: /
         backend:
           service:
             name: examiner

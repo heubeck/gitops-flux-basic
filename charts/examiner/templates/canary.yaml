@@ -2,22 +2,22 @@
 apiVersion: flagger.app/v1beta1
 kind: Canary
 metadata:
-  name: {{ include "echo.name" . }}
+  name: {{ include "name" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "echo.labels" . | nindent 4 }}
+    {{- include "labels" . | nindent 4 }}
 spec:
   # deployment reference
   targetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: {{ include "echo.name" . }}
+    name: {{ include "name" . }}
   # HPA reference (optional)
   {{- if .Values.autoscaling.enabled }}
   autoscalerRef:
     apiVersion: autoscaling/v2beta2
     kind: HorizontalPodAutoscaler
-    name: {{ include "echo.name" . }}
+    name: {{ include "name" . }}
   {{- end }}
   # the maximum time in seconds for the canary deployment
   # to make progress before it is rollback (default 600s)

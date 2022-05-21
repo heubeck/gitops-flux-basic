@@ -1,12 +1,330 @@
 ---
+###
+### Linkerd Namespace
+###
+kind: Namespace
+apiVersion: v1
+metadata:
+  name: linkerd
+  annotations:
+    linkerd.io/inject: disabled
+  labels:
+    linkerd.io/is-control-plane: "true"
+    config.linkerd.io/admission-webhooks: disabled
+    linkerd.io/control-plane-ns: linkerd
+---
+###
+### Identity Controller Service RBAC
+###
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: linkerd-linkerd-identity
+  labels:
+    linkerd.io/control-plane-component: identity
+    linkerd.io/control-plane-ns: linkerd
+rules:
+- apiGroups: ["authentication.k8s.io"]
+  resources: ["tokenreviews"]
+  verbs: ["create"]
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch"]
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: linkerd-linkerd-identity
+  labels:
+    linkerd.io/control-plane-component: identity
+    linkerd.io/control-plane-ns: linkerd
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: linkerd-linkerd-identity
+subjects:
+- kind: ServiceAccount
+  name: linkerd-identity
+  namespace: linkerd
+---
+kind: ServiceAccount
+apiVersion: v1
+metadata:
+  name: linkerd-identity
+  namespace: linkerd
+  labels:
+    linkerd.io/control-plane-component: identity
+    linkerd.io/control-plane-ns: linkerd
+---
+###
+### Destination Controller Service
+###
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: linkerd-linkerd-destination
+  labels:
+    linkerd.io/control-plane-component: destination
+    linkerd.io/control-plane-ns: linkerd
+rules:
+- apiGroups: ["apps"]
+  resources: ["replicasets"]
+  verbs: ["list", "get", "watch"]
+- apiGroups: ["batch"]
+  resources: ["jobs"]
+  verbs: ["list", "get", "watch"]
+- apiGroups: [""]
+  resources: ["pods", "endpoints", "services", "nodes", "namespaces"]
+  verbs: ["list", "get", "watch"]
+- apiGroups: ["linkerd.io"]
+  resources: ["serviceprofiles"]
+  verbs: ["list", "get", "watch"]
+- apiGroups: ["split.smi-spec.io"]
+  resources: ["trafficsplits"]
+  verbs: ["list", "get", "watch"]
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: linkerd-linkerd-destination
+  labels:
+    linkerd.io/control-plane-component: destination
+    linkerd.io/control-plane-ns: linkerd
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: linkerd-linkerd-destination
+subjects:
+- kind: ServiceAccount
+  name: linkerd-destination
+  namespace: linkerd
+---
+kind: ServiceAccount
+apiVersion: v1
+metadata:
+  name: linkerd-destination
+  namespace: linkerd
+  labels:
+    linkerd.io/control-plane-component: destination
+    linkerd.io/control-plane-ns: linkerd
+---
+kind: Secret
+apiVersion: v1
+metadata:
+  name: linkerd-sp-validator-k8s-tls
+  namespace: linkerd
+  labels:
+    linkerd.io/control-plane-component: destination
+    linkerd.io/control-plane-ns: linkerd
+  annotations:
+    linkerd.io/created-by: linkerd/cli stable-2.11.2
+type: kubernetes.io/tls
+data:
+  tls.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURURENDQWpTZ0F3SUJBZ0lRTXpGRVNYY0RGVWNlZXNQSmhIRGRRakFOQmdrcWhraUc5dzBCQVFzRkFEQXIKTVNrd0p3WURWUVFERXlCc2FXNXJaWEprTFhOd0xYWmhiR2xrWVhSdmNpNXNhVzVyWlhKa0xuTjJZekFlRncweQpNakExTWpFeU1ERXhNRE5hRncweU16QTFNakV5TURFeE1ETmFNQ3N4S1RBbkJnTlZCQU1USUd4cGJtdGxjbVF0CmMzQXRkbUZzYVdSaGRHOXlMbXhwYm10bGNtUXVjM1pqTUlJQklqQU5CZ2txaGtpRzl3MEJBUUVGQUFPQ0FROEEKTUlJQkNnS0NBUUVBeXlWN3Y0SG9JWTQxK2JyTWlBeVl3TFYyenJnc1ZVTWhzZjE3T0NNM21FTGY0MEFiK1Q3VApYM01Zd2xBazZ3ZC9XYi9sZEUzSXhXMXEzMnpLbmxBcUtMMkUyYzRXanBjZWNrRUI1VCtRRDV3c2VEMVl2K2JCCm9kMGdHUUZmMGVla3BwZEhJR0xzbWxYNFhyclZkMFVTUmxLSU8rMUtBRkNCRTVDL1hlemp3NVJKZFJiTmxCdHYKTkkwNXIrRE1jTmlrSzQ1a0ZmVVRkVmpiUkQ5NUpreUdEQlFDNFZaVU5hT1Y3V0J6ZFFVbHdFRGs0Nm5HVUllbQpnLzlNdGRqQm80dS9zMVRyR3RScHZqcWxHRUVYZHN2aENJSDR6RmE4eUpEUnlLRnczMmtraDlkaTllNnRlKysyCmI5eWE1WkY2cHN0RjRKMnFTT3haZU5nMzJlUVRsa0hpdndJREFRQUJvMnd3YWpBT0JnTlZIUThCQWY4RUJBTUMKQmFBd0hRWURWUjBsQkJZd0ZBWUlLd1lCQlFVSEF3RUdDQ3NHQVFVRkJ3TUNNQXdHQTFVZEV3RUIvd1FDTUFBdwpLd1lEVlIwUkJDUXdJb0lnYkdsdWEyVnlaQzF6Y0MxMllXeHBaR0YwYjNJdWJHbHVhMlZ5WkM1emRtTXdEUVlKCktvWklodmNOQVFFTEJRQURnZ0VCQUNCWGF3V05VS04wWHdTdVJpb2tUK01NVVdpdXJaam10N1hncWN6dzlQVWoKUDloZ0dZSlhrb1JHOFlUdFBNaGFQdi9ZRndNSDZUMFdQZ1M5U2tRVG9BK2NGdS85OTUzMUN4ZSs0VlhrR2dmVwpBMTBxY0p1azBUQmZvenVQdElMZUVGRERIRm12WWhZbXpka3UrNDcrckxZRCtaeUhFZjY4UDY3cStoQXFkc1crCm1Eb1JxM2FJMWVIT1Y3UVg4cXYwalluTm40aGVCQ0xSQTNkRWg5TlUrbmRTeW94U0JzWXEya2ZJNnd6TmQ4eFcKNmw1dmU5QnkwUFd3YTJ5enQ2dGlTL3o4RGR1aG1WLzZ2aC9tWW9GMG9WV2dHbnZtbUxOTE1uVjA0MlRxMWlxKwpWT2ZDNG5qWlE5NVZMQlFwTU0xbERvMVBJZnZDOFVJblkxdG1vc2lTU3M0PQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0t
+  tls.key: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFb3dJQkFBS0NBUUVBeXlWN3Y0SG9JWTQxK2JyTWlBeVl3TFYyenJnc1ZVTWhzZjE3T0NNM21FTGY0MEFiCitUN1RYM01Zd2xBazZ3ZC9XYi9sZEUzSXhXMXEzMnpLbmxBcUtMMkUyYzRXanBjZWNrRUI1VCtRRDV3c2VEMVkKditiQm9kMGdHUUZmMGVla3BwZEhJR0xzbWxYNFhyclZkMFVTUmxLSU8rMUtBRkNCRTVDL1hlemp3NVJKZFJiTgpsQnR2TkkwNXIrRE1jTmlrSzQ1a0ZmVVRkVmpiUkQ5NUpreUdEQlFDNFZaVU5hT1Y3V0J6ZFFVbHdFRGs0Nm5HClVJZW1nLzlNdGRqQm80dS9zMVRyR3RScHZqcWxHRUVYZHN2aENJSDR6RmE4eUpEUnlLRnczMmtraDlkaTllNnQKZSsrMmI5eWE1WkY2cHN0RjRKMnFTT3haZU5nMzJlUVRsa0hpdndJREFRQUJBb0lCQVFDWGFMS1pBK3ZOeHI2NApDT0FVcnI3VE11MEFHZ2tBNjI0YnlUK2prYXdJRWgvb3NvbW05WXA1WThHYVlqMkI1eTZsNS83TzlvS2prMi9LCllyMkp6Vm4rejNKTEcrMTREVzRsM2duWm9jeHZ0Z2oyL1ZJK2hYRGdnWDFBNWVOVEFZR1lvTHZraVphcldWUXEKMXJudmtVMlRtRVB0MW1nSFgvazBhZmdYdTAzdklDeTgzRnpFTjQzVy8vWmhDd1NZSVVFQVZnaGVBbENKN0paQgoyQWdkMno4MS9jSm9QOTBZQXRYOE1ncmlVZzZxVmlZSzdPQXVJbDdXNVhxWm43bjkxNURVUHVjODlkQS9qWVlHCk56UFE2SkJ6Njk4NXVISHNJZ1RlOXBZNCtmUGlCKzBzbXNnbnFxeHRka2J1VlJuZml6RldyTmxHOUFlKys0MXYKdDlDREZMV2hBb0dCQU9DYS91L2JjQ3VmdFVQRS9vSUQ0cTIzTE43eGw5WXN4VHhxUEVtYXA3djlpNG8xOU5SZgpvTFE5UTV0bEpjRkNRdVdmakNSSDdBb29mMll5TjlTZlhmczhoaThDL1hzWTFZTU1Oc24yTVQ5T3BqQnNrOGt5CjBrZFd5cHhqdXllZWhJZm1FWVNkL3RzNWFtU1FWM2ZKbCthYUhuaGdTRFhZVlRYS0wvY3ZoOEhKQW9HQkFPZUsKbjc3R2s2czc5K21yV3k0K2hDVGhsakFrMThKOGpQUDd5SitaQ3Y0djl5QisxM3pCUkpVUjloWXZ1NVRGRTRrVwpWaDArU3hyQWxlcEZlc1lPcWJ2T21GWVZjYlpoNXpTVWw2RmVIZE9yZWNLZkl3L25jTktUZlM2eFhmeEMrZjUvCm9nUkRBTkhjc2p2WDNOWVhweHZqUmlSZ3JGMGkwUE1PRitCdDlBUkhBb0dBWU5XU09oa1NpRXhIMnhyd1cxK1AKZURPMERiNTlKdUtRZXBhV3ZXa0hEZjZuRFlScnRMQXgyZU5iNVlBN1FkSHVnNDlBM1ZlQXhYUm1VTW92MWVTTApvVWliMVdMbHBBKzE1ZFQ3UGlGOVkvemxtNVVFTmtkSjcyWFUzbzRFMzNUeFVLSDVSWUxVb1BGbEZFeEMyYXM1CmFUdGpEYVQ5SFBIUzh1amp1eDlyMlRrQ2dZQlpUTUdubG5iRmgrOXBrOGtxNExtZWI5SzQ1cnpBS2NGREtFeU0KSVQ1NElvK3hYTHBIUjFMb0czRkp4VWNYYlpySE9ISWwvU3lDT055WTZnc2I3L1BPbHpOeG4vdW5WOE1RS0c4QwpzWVhYYVQ4Z3JMZWRIcW9JelJGdXZNRisxV1lObmJRaTZLU2NTLzRCenBOQmp3WElYN05odkZjOTVIdXFBamw3Ck9XenZhUUtCZ0F1ZUlsdVljdGY2RjBrMm0xN2pva0tpajBsVjgxMVZSdGIrdXpiTHVlWXpYU25hUUZuaVU4VzgKU3pWRVBRYjNTOEtiaTNFQ3ZKUGZCVG8xay9SbitnVHZsbzFMUGloWGVzdGZhRjBYdGJCMmtJMy9jTDhxL2NtYgpqaHVDU1Frc0lUdjVBQW1wejJKNXExeDZTN2dqNEFTOE9mcjM0cDhjTnhvS005SkhLWitnCi0tLS0tRU5EIFJTQSBQUklWQVRFIEtFWS0tLS0t
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: linkerd-sp-validator-webhook-config
+  labels:
+    linkerd.io/control-plane-component: destination
+    linkerd.io/control-plane-ns: linkerd
+webhooks:
+- name: linkerd-sp-validator.linkerd.io
+  namespaceSelector:
+    matchExpressions:
+    - key: config.linkerd.io/admission-webhooks
+      operator: NotIn
+      values:
+      - disabled
+  clientConfig:
+    service:
+      name: linkerd-sp-validator
+      namespace: linkerd
+      path: "/"
+    caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURURENDQWpTZ0F3SUJBZ0lRTXpGRVNYY0RGVWNlZXNQSmhIRGRRakFOQmdrcWhraUc5dzBCQVFzRkFEQXIKTVNrd0p3WURWUVFERXlCc2FXNXJaWEprTFhOd0xYWmhiR2xrWVhSdmNpNXNhVzVyWlhKa0xuTjJZekFlRncweQpNakExTWpFeU1ERXhNRE5hRncweU16QTFNakV5TURFeE1ETmFNQ3N4S1RBbkJnTlZCQU1USUd4cGJtdGxjbVF0CmMzQXRkbUZzYVdSaGRHOXlMbXhwYm10bGNtUXVjM1pqTUlJQklqQU5CZ2txaGtpRzl3MEJBUUVGQUFPQ0FROEEKTUlJQkNnS0NBUUVBeXlWN3Y0SG9JWTQxK2JyTWlBeVl3TFYyenJnc1ZVTWhzZjE3T0NNM21FTGY0MEFiK1Q3VApYM01Zd2xBazZ3ZC9XYi9sZEUzSXhXMXEzMnpLbmxBcUtMMkUyYzRXanBjZWNrRUI1VCtRRDV3c2VEMVl2K2JCCm9kMGdHUUZmMGVla3BwZEhJR0xzbWxYNFhyclZkMFVTUmxLSU8rMUtBRkNCRTVDL1hlemp3NVJKZFJiTmxCdHYKTkkwNXIrRE1jTmlrSzQ1a0ZmVVRkVmpiUkQ5NUpreUdEQlFDNFZaVU5hT1Y3V0J6ZFFVbHdFRGs0Nm5HVUllbQpnLzlNdGRqQm80dS9zMVRyR3RScHZqcWxHRUVYZHN2aENJSDR6RmE4eUpEUnlLRnczMmtraDlkaTllNnRlKysyCmI5eWE1WkY2cHN0RjRKMnFTT3haZU5nMzJlUVRsa0hpdndJREFRQUJvMnd3YWpBT0JnTlZIUThCQWY4RUJBTUMKQmFBd0hRWURWUjBsQkJZd0ZBWUlLd1lCQlFVSEF3RUdDQ3NHQVFVRkJ3TUNNQXdHQTFVZEV3RUIvd1FDTUFBdwpLd1lEVlIwUkJDUXdJb0lnYkdsdWEyVnlaQzF6Y0MxMllXeHBaR0YwYjNJdWJHbHVhMlZ5WkM1emRtTXdEUVlKCktvWklodmNOQVFFTEJRQURnZ0VCQUNCWGF3V05VS04wWHdTdVJpb2tUK01NVVdpdXJaam10N1hncWN6dzlQVWoKUDloZ0dZSlhrb1JHOFlUdFBNaGFQdi9ZRndNSDZUMFdQZ1M5U2tRVG9BK2NGdS85OTUzMUN4ZSs0VlhrR2dmVwpBMTBxY0p1azBUQmZvenVQdElMZUVGRERIRm12WWhZbXpka3UrNDcrckxZRCtaeUhFZjY4UDY3cStoQXFkc1crCm1Eb1JxM2FJMWVIT1Y3UVg4cXYwalluTm40aGVCQ0xSQTNkRWg5TlUrbmRTeW94U0JzWXEya2ZJNnd6TmQ4eFcKNmw1dmU5QnkwUFd3YTJ5enQ2dGlTL3o4RGR1aG1WLzZ2aC9tWW9GMG9WV2dHbnZtbUxOTE1uVjA0MlRxMWlxKwpWT2ZDNG5qWlE5NVZMQlFwTU0xbERvMVBJZnZDOFVJblkxdG1vc2lTU3M0PQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0t
+  failurePolicy: Ignore
+  admissionReviewVersions: ["v1", "v1beta1"]
+  rules:
+  - operations: ["CREATE", "UPDATE"]
+    apiGroups: ["linkerd.io"]
+    apiVersions: ["v1alpha1", "v1alpha2"]
+    resources: ["serviceprofiles"]
+  sideEffects: None
+---
+kind: Secret
+apiVersion: v1
+metadata:
+  name: linkerd-policy-validator-k8s-tls
+  namespace: linkerd
+  labels:
+    linkerd.io/control-plane-component: destination
+    linkerd.io/control-plane-ns: linkerd
+  annotations:
+    linkerd.io/created-by: linkerd/cli stable-2.11.2
+type: kubernetes.io/tls
+data:
+  tls.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURXVENDQWtHZ0F3SUJBZ0lSQUpIQ0ErcStpdFNucmYxaG5YZTc3Mkl3RFFZSktvWklodmNOQVFFTEJRQXcKTHpFdE1Dc0dBMVVFQXhNa2JHbHVhMlZ5WkMxd2IyeHBZM2t0ZG1Gc2FXUmhkRzl5TG14cGJtdGxjbVF1YzNaagpNQjRYRFRJeU1EVXlNVEl3TVRFd00xb1hEVEl6TURVeU1USXdNVEV3TTFvd0x6RXRNQ3NHQTFVRUF4TWtiR2x1CmEyVnlaQzF3YjJ4cFkza3RkbUZzYVdSaGRHOXlMbXhwYm10bGNtUXVjM1pqTUlJQklqQU5CZ2txaGtpRzl3MEIKQVFFRkFBT0NBUThBTUlJQkNnS0NBUUVBeHdBcU9IQ09PcXFEbVdENHFLN0tTK2wrZUdROGY2U3paWGlMdjZhWgovNmZxWTJTNFVRazNCSGhCVWdUSG9BTGUvM25nWmJ0UlpQa3p6R2F2bFZxWm5TN2V0SlErTFdWTStzcW9mbjg4CkEvR09EWTh2aVZBcExEdENPN2s2dG1Cb1hLbXVxOW04L1VtWHRuTXZlMWM2bktVMXMxdGYvaFBMdms0R2tSRVEKMFV4VmRwWUpOY0xiRlZvUjhIbDBiRVI5c2NFd3RycFFyWmFyMjdNd09zQTVpYTRVWGs2RGhuN0FBVElmTy9oMgo2NFUrYVY4by8xd1pKY2NVbCtyaGt6TTA1NldiKzhscHBSMTBEYVVHbWhXS001ZXBMVlBOUVF2SWxTWTkwMnB5ClZUOHVNeFlzZjZ1STRRcFgreGJHYVFaVi85cUZDT204TS9ZSFk5Z2tOWG0xS1FJREFRQUJvM0F3YmpBT0JnTlYKSFE4QkFmOEVCQU1DQmFBd0hRWURWUjBsQkJZd0ZBWUlLd1lCQlFVSEF3RUdDQ3NHQVFVRkJ3TUNNQXdHQTFVZApFd0VCL3dRQ01BQXdMd1lEVlIwUkJDZ3dKb0lrYkdsdWEyVnlaQzF3YjJ4cFkza3RkbUZzYVdSaGRHOXlMbXhwCmJtdGxjbVF1YzNaak1BMEdDU3FHU0liM0RRRUJDd1VBQTRJQkFRQ1NvdkZCSkZYSkxBa1RsOGUyTjAyZ2RMaTcKa3JTTUpqK1NLME5JdDNUZFZManpHVDN5RkZ0b3NWODc3VmdxeWsyWUkwRjBiMVpDWW1oYmltMjY2V0NWMno5MgpPbTkxVk10WXN5ejY1MFc4M0ZoMnRCODkzZjJlaTVMaVVjZ0theTNwUXVYcm1lRHhJODRQbTNNcUF1N3hzRDFMCjFrL1VCREJOeS9tT2Z6TGdMQjQ4b1J2Z1pGL0RYb3lVNTY1Uk04YWRzeWhYcjJJWWNaNEpWcmhYT2tjbi9XczgKbUMrM0ZuU2EyY3B3bWV5SXFVQlptUS9rampCb2szM2RLeUMwbUd5SFpvTE5Dd2lrekF1OFg2TUNzT1VIQndsdQpXMHNPaGMrcUJIZjVQZzQ4dnEveEUrUVlhMVR6V3ZZRHFWT0JVR1k0ODFpQWhGdjdMdERiM09UZkRMUjgKLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQ==
+  tls.key: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFcEFJQkFBS0NBUUVBeHdBcU9IQ09PcXFEbVdENHFLN0tTK2wrZUdROGY2U3paWGlMdjZhWi82ZnFZMlM0ClVRazNCSGhCVWdUSG9BTGUvM25nWmJ0UlpQa3p6R2F2bFZxWm5TN2V0SlErTFdWTStzcW9mbjg4QS9HT0RZOHYKaVZBcExEdENPN2s2dG1Cb1hLbXVxOW04L1VtWHRuTXZlMWM2bktVMXMxdGYvaFBMdms0R2tSRVEwVXhWZHBZSgpOY0xiRlZvUjhIbDBiRVI5c2NFd3RycFFyWmFyMjdNd09zQTVpYTRVWGs2RGhuN0FBVElmTy9oMjY0VSthVjhvCi8xd1pKY2NVbCtyaGt6TTA1NldiKzhscHBSMTBEYVVHbWhXS001ZXBMVlBOUVF2SWxTWTkwMnB5VlQ4dU14WXMKZjZ1STRRcFgreGJHYVFaVi85cUZDT204TS9ZSFk5Z2tOWG0xS1FJREFRQUJBb0lCQUh3YWJ6b3BmNW00a3orSgpDU254YjdtdDBUQjFtb0VrRHJqK1YzRGJEbmt3bCswS2VDUVpjaFU0aGN3SHJSTHVGM0lONk5LbzRoYnRqczh2ClR0cisySVA5SWVoTjl3VEtneHA0WG1JZEtTbHdjRjJtYVVmaUZQcy9yWXVmZGEwZExKaDFQYmh3bnZyNjlVRlUKVGsxR1ZnZ3d3KytwMFpDYmVkbWh3VmlnNHZNUzVRem1FYmlOMnZidjMwbnJFR1hESTlmUTBvbHcvKzJMb3ZtSQpEYUJERE5RQStxV3BpMXZjb2pMOHpPV3hIYWRTV3luYUJKVG5LcjdqM3A1enkvZjhmbzBPdGpLSUNuSTc5M1hMClNnNkRJbnA1QjhNTTc1SmpnR3U2ZVdtbGFNRWczakU1RDNJWUFrNmR2TmpRL3ZlNDJnSnV6eXBjYmlPSEwrZlMKRHZOaFFFMENnWUVBMk1Na1FkUkx1dlZobFpXVlpMampIUU9na3NVSmZtT0p1Rys5cEkxdVJBTVFqSFExUitMbgpLOCtPMm9TOFdOYS9oYjdqbThsRXRwb3hSSzh4L05NOXhjUEYrQ3BNNjNWVjFGZEtXUlc0Y3E0YkV6SEg3bEtRCkxSb3NoampscDVsbndwTklhR1lhNkhqNVpCK2ZrSVlTMTNSeWw0RHVpeFdkOUUxNjlIcFJNYWNDZ1lFQTZ3WHgKRTVsRHBFSE5La3Y3TkJGODNXYkdReDYvYlFXbC83anV0NkIyaG9XVlErQUdoZitCSGdCLzc2V0hEQUlFMzlHSApZWCtBbno3YnY1aTd2QTU0WFlMSTBGQS9iRUNRVEtDRlZYdTJYNWxvZEFJZWFReGtJRkxteTBCMGxFWkoxZlJuCm53TVdtSytTUVhEdlozMWs1SE9pL3dmWHd3TERhVXkxRXBWeG5LOENnWUI5VHFJaEpCYjdaMnNZVERibTJUTUIKek4wQXU4TTNPMWVjTll5T0dleUtpTE1DWHhPR0VSZk9iZGlKWG41N1pQbW0yYWsrbitXSElqQWxJcHBsSzhEawpHTDdUTGJEMTFRamZEZTgrL0oxNlBrZ01tcFNYbzBjUnE3WGRpZnJKSHBlckZmV2YxSmJ0bVRHaXZkMUNjUjluClNqd01kVTV4UFBmcENQbHhaMXlVdFFLQmdRREVjTER5Q3JicEFqNzBUWkhvRVgzbXFOS3FvM2FwTDRGeVh5YlkKd1B5UXIvTDFTcmpwSTRqT2hPaHFiRmFXaU5GK0ttb1g2alNkNWpKUzBOeUo4U1pXTXN5YW9aaUJhTzJ6dnEvegpwWFhvTGhlS2I0THZsdlhSdHJsRnhkZ3JYeHkwQXBiaDUvanBJa2NDLzl4N0NlcGNzUExhYTduQ08vc05kcG9hCnNHTEg3UUtCZ1FDYkRRbVpDQnJLRjlBekI4aGJEdmtld0tCZklESmZuSnVVNnlBRE1WYW1QaGxLUTVvSDcycDQKN3BKcXR3ZzFwUnU4QjNPTGJkZTNDVXhMM0V2RmhYK1YxQ3Q1Z25pT25kbjZQOXAxcERSVjNSRlJaZHp5U3hKVgoyRW1YZnMxWnJqZVZIT2xGM2tvWUJ0eUd4eTNYMGF2VzQwNEZsUTZZQ003dHJJcDJNUytJWkE9PQotLS0tLUVORCBSU0EgUFJJVkFURSBLRVktLS0tLQ==
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: linkerd-policy-validator-webhook-config
+  labels:
+    linkerd.io/control-plane-component: destination
+    linkerd.io/control-plane-ns: linkerd
+webhooks:
+- name: linkerd-policy-validator.linkerd.io
+  namespaceSelector:
+    matchExpressions:
+    - key: config.linkerd.io/admission-webhooks
+      operator: NotIn
+      values:
+      - disabled
+  clientConfig:
+    service:
+      name: linkerd-policy-validator
+      namespace: linkerd
+      path: "/"
+    caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURXVENDQWtHZ0F3SUJBZ0lSQUpIQ0ErcStpdFNucmYxaG5YZTc3Mkl3RFFZSktvWklodmNOQVFFTEJRQXcKTHpFdE1Dc0dBMVVFQXhNa2JHbHVhMlZ5WkMxd2IyeHBZM2t0ZG1Gc2FXUmhkRzl5TG14cGJtdGxjbVF1YzNaagpNQjRYRFRJeU1EVXlNVEl3TVRFd00xb1hEVEl6TURVeU1USXdNVEV3TTFvd0x6RXRNQ3NHQTFVRUF4TWtiR2x1CmEyVnlaQzF3YjJ4cFkza3RkbUZzYVdSaGRHOXlMbXhwYm10bGNtUXVjM1pqTUlJQklqQU5CZ2txaGtpRzl3MEIKQVFFRkFBT0NBUThBTUlJQkNnS0NBUUVBeHdBcU9IQ09PcXFEbVdENHFLN0tTK2wrZUdROGY2U3paWGlMdjZhWgovNmZxWTJTNFVRazNCSGhCVWdUSG9BTGUvM25nWmJ0UlpQa3p6R2F2bFZxWm5TN2V0SlErTFdWTStzcW9mbjg4CkEvR09EWTh2aVZBcExEdENPN2s2dG1Cb1hLbXVxOW04L1VtWHRuTXZlMWM2bktVMXMxdGYvaFBMdms0R2tSRVEKMFV4VmRwWUpOY0xiRlZvUjhIbDBiRVI5c2NFd3RycFFyWmFyMjdNd09zQTVpYTRVWGs2RGhuN0FBVElmTy9oMgo2NFUrYVY4by8xd1pKY2NVbCtyaGt6TTA1NldiKzhscHBSMTBEYVVHbWhXS001ZXBMVlBOUVF2SWxTWTkwMnB5ClZUOHVNeFlzZjZ1STRRcFgreGJHYVFaVi85cUZDT204TS9ZSFk5Z2tOWG0xS1FJREFRQUJvM0F3YmpBT0JnTlYKSFE4QkFmOEVCQU1DQmFBd0hRWURWUjBsQkJZd0ZBWUlLd1lCQlFVSEF3RUdDQ3NHQVFVRkJ3TUNNQXdHQTFVZApFd0VCL3dRQ01BQXdMd1lEVlIwUkJDZ3dKb0lrYkdsdWEyVnlaQzF3YjJ4cFkza3RkbUZzYVdSaGRHOXlMbXhwCmJtdGxjbVF1YzNaak1BMEdDU3FHU0liM0RRRUJDd1VBQTRJQkFRQ1NvdkZCSkZYSkxBa1RsOGUyTjAyZ2RMaTcKa3JTTUpqK1NLME5JdDNUZFZManpHVDN5RkZ0b3NWODc3VmdxeWsyWUkwRjBiMVpDWW1oYmltMjY2V0NWMno5MgpPbTkxVk10WXN5ejY1MFc4M0ZoMnRCODkzZjJlaTVMaVVjZ0theTNwUXVYcm1lRHhJODRQbTNNcUF1N3hzRDFMCjFrL1VCREJOeS9tT2Z6TGdMQjQ4b1J2Z1pGL0RYb3lVNTY1Uk04YWRzeWhYcjJJWWNaNEpWcmhYT2tjbi9XczgKbUMrM0ZuU2EyY3B3bWV5SXFVQlptUS9rampCb2szM2RLeUMwbUd5SFpvTE5Dd2lrekF1OFg2TUNzT1VIQndsdQpXMHNPaGMrcUJIZjVQZzQ4dnEveEUrUVlhMVR6V3ZZRHFWT0JVR1k0ODFpQWhGdjdMdERiM09UZkRMUjgKLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQ==
+  failurePolicy: Ignore
+  admissionReviewVersions: ["v1", "v1beta1"]
+  rules:
+  - operations: ["CREATE", "UPDATE"]
+    apiGroups: ["policy.linkerd.io"]
+    apiVersions: ["v1alpha1", "v1beta1"]
+    resources:
+    - serverauthorizations
+    - servers
+  sideEffects: None
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: linkerd-policy
+  labels:
+    app.kubernetes.io/part-of: Linkerd
+    linkerd.io/control-plane-component: destination
+    linkerd.io/control-plane-ns: linkerd
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - policy.linkerd.io
+    resources:
+      - servers
+      - serverauthorizations
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: linkerd-destination-policy
+  labels:
+    app.kubernetes.io/part-of: Linkerd
+    linkerd.io/control-plane-component: destination
+    linkerd.io/control-plane-ns: linkerd
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: linkerd-policy
+subjects:
+  - kind: ServiceAccount
+    name: linkerd-destination
+    namespace: linkerd
+---
+###
+### Heartbeat RBAC
+###
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: linkerd-heartbeat
+  namespace: linkerd
+  labels:
+    linkerd.io/control-plane-ns: linkerd
+rules:
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get"]
+  resourceNames: ["linkerd-config"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: linkerd-heartbeat
+  namespace: linkerd
+  labels:
+    linkerd.io/control-plane-ns: linkerd
+roleRef:
+  kind: Role
+  name: linkerd-heartbeat
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+- kind: ServiceAccount
+  name: linkerd-heartbeat
+  namespace: linkerd
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: linkerd-heartbeat
+  labels:
+    linkerd.io/control-plane-ns: linkerd
+rules:
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["list"]
+- apiGroups: ["linkerd.io"]
+  resources: ["serviceprofiles"]
+  verbs: ["list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: linkerd-heartbeat
+  labels:
+    linkerd.io/control-plane-ns: linkerd
+roleRef:
+  kind: ClusterRole
+  name: linkerd-heartbeat
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+- kind: ServiceAccount
+  name: linkerd-heartbeat
+  namespace: linkerd
+---
+kind: ServiceAccount
+apiVersion: v1
+metadata:
+  name: linkerd-heartbeat
+  namespace: linkerd
+  labels:
+    linkerd.io/control-plane-component: heartbeat
+    linkerd.io/control-plane-ns: linkerd
+---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   name: servers.policy.linkerd.io
   annotations:
-    linkerd.io/created-by: linkerd/cli edge-22.3.4
+    linkerd.io/created-by: linkerd/cli stable-2.11.2
   labels:
-    helm.sh/chart: linkerd-control-plane-1.1.11-edge
+    helm.sh/chart: linkerd2-0.1.0
     linkerd.io/control-plane-ns: linkerd
 spec:
   group: policy.linkerd.io
@@ -150,9 +468,8 @@ kind: CustomResourceDefinition
 metadata:
   name: serverauthorizations.policy.linkerd.io
   annotations:
-    linkerd.io/created-by: linkerd/cli edge-22.3.4
+    linkerd.io/created-by: linkerd/cli stable-2.11.2
   labels:
-    helm.sh/chart: linkerd-control-plane-1.1.11-edge
     linkerd.io/control-plane-ns: linkerd
 spec:
   group: policy.linkerd.io
@@ -166,8 +483,6 @@ spec:
     - name: v1alpha1
       served: true
       storage: false
-      deprecated: true
-      deprecationWarning: "policy.linkerd.io/v1alpha1 ServerAuthorization is deprecated; use policy.linkerd.io/v1beta1 ServerAuthorization"
       schema:
         openAPIV3Schema:
           type: object
@@ -198,9 +513,6 @@ spec:
                       description: >-
                         A label query over servers on which this authorization applies.
                       type: object
-                      oneOf:
-                        - required: [matchLabels]
-                        - required: [matchExpressions]
                       properties:
                         matchLabels:
                           type: object
@@ -223,9 +535,6 @@ spec:
                 client:
                   description:  Describes clients authorized to access a server.
                   type: object
-                  oneOf:
-                    - required: [meshTLS]
-                    - required: [unauthenticated]
                   properties:
                     networks:
                       description: >-
@@ -250,10 +559,6 @@ spec:
                       type: boolean
                     meshTLS:
                       type: object
-                      oneOf:
-                        - required: [unauthenticatedTLS]
-                        - required: [identities]
-                        - required: [serviceAccounts]
                       properties:
                         unauthenticatedTLS:
                           type: boolean
@@ -328,9 +633,6 @@ spec:
                       description: >-
                         A label query over servers on which this authorization applies.
                       type: object
-                      oneOf:
-                        - required: [matchLabels]
-                        - required: [matchExpressions]
                       properties:
                         matchLabels:
                           type: object
@@ -353,9 +655,6 @@ spec:
                 client:
                   description:  Describes clients authorized to access a server.
                   type: object
-                  oneOf:
-                    - required: [meshTLS]
-                    - required: [unauthenticated]
                   properties:
                     networks:
                       description: >-
@@ -380,10 +679,6 @@ spec:
                       type: boolean
                     meshTLS:
                       type: object
-                      oneOf:
-                        - required: [unauthenticatedTLS]
-                        - required: [identities]
-                        - required: [serviceAccounts]
                       properties:
                         unauthenticatedTLS:
                           type: boolean
@@ -439,9 +734,8 @@ kind: CustomResourceDefinition
 metadata:
   name: serviceprofiles.linkerd.io
   annotations:
-    linkerd.io/created-by: linkerd/cli edge-22.3.4
+    linkerd.io/created-by: linkerd/cli stable-2.11.2
   labels:
-    helm.sh/chart: linkerd-control-plane-1.1.11-edge
     linkerd.io/control-plane-ns: linkerd
 spec:
   group: linkerd.io
@@ -710,322 +1004,99 @@ spec:
     - sp
 ---
 ###
-### Linkerd Namespace
+### TrafficSplit CRD
+### Copied from github.com/servicemeshinterface/smi-sdk-go/blob/d4e76b1cd7a33ead5f38d1262dd838a31c80f4e5/crds/split.yaml
 ###
-kind: Namespace
-apiVersion: v1
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
 metadata:
-  name: linkerd
+  name: trafficsplits.split.smi-spec.io
   annotations:
-    linkerd.io/inject: disabled
-  labels:
-    linkerd.io/is-control-plane: "true"
-    config.linkerd.io/admission-webhooks: disabled
-    linkerd.io/control-plane-ns: linkerd
----
-###
-### Identity Controller Service RBAC
-###
-kind: ClusterRole
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: linkerd-linkerd-identity
-  labels:
-    linkerd.io/control-plane-component: identity
-    linkerd.io/control-plane-ns: linkerd
-rules:
-- apiGroups: ["authentication.k8s.io"]
-  resources: ["tokenreviews"]
-  verbs: ["create"]
-- apiGroups: ["apps"]
-  resources: ["deployments"]
-  verbs: ["get"]
-- apiGroups: [""]
-  resources: ["events"]
-  verbs: ["create", "patch"]
----
-kind: ClusterRoleBinding
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: linkerd-linkerd-identity
-  labels:
-    linkerd.io/control-plane-component: identity
-    linkerd.io/control-plane-ns: linkerd
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: linkerd-linkerd-identity
-subjects:
-- kind: ServiceAccount
-  name: linkerd-identity
-  namespace: linkerd
----
-kind: ServiceAccount
-apiVersion: v1
-metadata:
-  name: linkerd-identity
-  namespace: linkerd
-  labels:
-    linkerd.io/control-plane-component: identity
-    linkerd.io/control-plane-ns: linkerd
----
-###
-### Destination Controller Service
-###
-kind: ClusterRole
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: linkerd-linkerd-destination
-  labels:
-    linkerd.io/control-plane-component: destination
-    linkerd.io/control-plane-ns: linkerd
-rules:
-- apiGroups: ["apps"]
-  resources: ["replicasets"]
-  verbs: ["list", "get", "watch"]
-- apiGroups: ["batch"]
-  resources: ["jobs"]
-  verbs: ["list", "get", "watch"]
-- apiGroups: [""]
-  resources: ["pods", "endpoints", "services", "nodes", "namespaces"]
-  verbs: ["list", "get", "watch"]
-- apiGroups: ["linkerd.io"]
-  resources: ["serviceprofiles"]
-  verbs: ["list", "get", "watch"]
-- apiGroups: ["discovery.k8s.io"]
-  resources: ["endpointslices"]
-  verbs: ["list", "get", "watch"]
----
-kind: ClusterRoleBinding
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: linkerd-linkerd-destination
-  labels:
-    linkerd.io/control-plane-component: destination
-    linkerd.io/control-plane-ns: linkerd
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: linkerd-linkerd-destination
-subjects:
-- kind: ServiceAccount
-  name: linkerd-destination
-  namespace: linkerd
----
-kind: ServiceAccount
-apiVersion: v1
-metadata:
-  name: linkerd-destination
-  namespace: linkerd
-  labels:
-    linkerd.io/control-plane-component: destination
-    linkerd.io/control-plane-ns: linkerd
----
-kind: Secret
-apiVersion: v1
-metadata:
-  name: linkerd-sp-validator-k8s-tls
-  namespace: linkerd
-  labels:
-    linkerd.io/control-plane-component: destination
-    linkerd.io/control-plane-ns: linkerd
-  annotations:
-    linkerd.io/created-by: linkerd/cli edge-22.3.4
-type: kubernetes.io/tls
-data:
-  tls.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURUVENDQWpXZ0F3SUJBZ0lSQUpQZTNBcE1hT1Jwb1NPYmxCMFIxbVF3RFFZSktvWklodmNOQVFFTEJRQXcKS3pFcE1DY0dBMVVFQXhNZ2JHbHVhMlZ5WkMxemNDMTJZV3hwWkdGMGIzSXViR2x1YTJWeVpDNXpkbU13SGhjTgpNakl3TkRFMU1UTXhPREF3V2hjTk1qTXdOREUxTVRNeE9EQXdXakFyTVNrd0p3WURWUVFERXlCc2FXNXJaWEprCkxYTndMWFpoYkdsa1lYUnZjaTVzYVc1clpYSmtMbk4yWXpDQ0FTSXdEUVlKS29aSWh2Y05BUUVCQlFBRGdnRVAKQURDQ0FRb0NnZ0VCQU9OUzVBYmcrMkxlVnJYTlJyQzFDY1pHM08xK1V5NDh6amxGRDNIdjNxbytHSjhMb1BvSQozQnJIRXhuOGRQcVIwa0xuRnRWNG0vOWZnQlRnL2dUWFRSaEZ5QlRqcElHRklVekMwYUpFTXJnaGx3cERVZmJKCjJoN2pRYlVRNVlJN2tqVWU0UU5iOHBIYTFpK3FpYW9KVzM1WE5qZkhhT0VGRUpLMDhGamhpNUZCQ2FhU0pHVXEKS0h3K0ZDZHZ6U1lzZDcrVlA1OFllRHVwS1Njd25xSmpxTXdCeDRIZUVNVTJ4bXc4ZHpYcC9hSE9ZZndER1RCVwpzNFIweVpxUFgzcnBpeFJiUmUrbERWK3pSakl6UGpWcHRmQ1NTdW9GSWdkZFlsdURIS0gzdkNXTkF1TWZVaHRYCmFYcmFDaFJqTUw3MFFyekN2bW5iaUt0bis0NEwweTdVM0NrQ0F3RUFBYU5zTUdvd0RnWURWUjBQQVFIL0JBUUQKQWdXZ01CMEdBMVVkSlFRV01CUUdDQ3NHQVFVRkJ3TUJCZ2dyQmdFRkJRY0RBakFNQmdOVkhSTUJBZjhFQWpBQQpNQ3NHQTFVZEVRUWtNQ0tDSUd4cGJtdGxjbVF0YzNBdGRtRnNhV1JoZEc5eUxteHBibXRsY21RdWMzWmpNQTBHCkNTcUdTSWIzRFFFQkN3VUFBNElCQVFCZ1lvM2hqQWxGd253S0cxTGJicE5jNUo3SHp6Lzh6azdHdGZ6UzFtMFgKMjRZK2Zvb0JCT25LbVJLSWtCYTRzWEhtWGp3L2k0dlYrRWNOa2FKVEZzNDUyREc1WW9aRjlnclpZWkRzaEhzRApRWkdMN2pBbE13OWhZeTR2Q1R1NzdUNXJYYVp2THVJVG9UZ3g2NXhtYkoyWHB6ejR2SU1ad3hyd0h5MmJ1d0huCk1odHJ2RyszQ3I1WjNRLy9sTjFKS3p1dVpNR0YxOVNSTTVZbmtTSHJsS05FQjNkL2diR0hzM3lOZlV3ZmtQZFAKY1pHbTIvbzUvSFN0M2tzV2lSV3YyN1puV25pWHIwZzN1OG44d1FtQ2p4aHp2bEg5K2NsRFpXcXdXdVk3SGV5eApxUkJMYmUrMDgwdGkwYTQraEt4ZTlOMkhlRU91WW44aGV0cXFsRjA4ZHJEbAotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0t
-  tls.key: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFb3dJQkFBS0NBUUVBNDFMa0J1RDdZdDVXdGMxR3NMVUp4a2JjN1g1VExqek9PVVVQY2UvZXFqNFlud3VnCitnamNHc2NUR2Z4MCtwSFNRdWNXMVhpYi8xK0FGT0QrQk5kTkdFWElGT09rZ1lVaFRNTFJva1F5dUNHWENrTlIKOXNuYUh1TkJ0UkRsZ2p1U05SN2hBMXZ5a2RyV0w2cUpxZ2xiZmxjMk44ZG80UVVRa3JUd1dPR0xrVUVKcHBJawpaU29vZkQ0VUoyL05KaXgzdjVVL254aDRPNmtwSnpDZW9tT296QUhIZ2Q0UXhUYkdiRHgzTmVuOW9jNWgvQU1aCk1GYXpoSFRKbW85ZmV1bUxGRnRGNzZVTlg3TkdNak0rTldtMThKSks2Z1VpQjExaVc0TWNvZmU4SlkwQzR4OVMKRzFkcGV0b0tGR013dnZSQ3ZNSythZHVJcTJmN2pndlRMdFRjS1FJREFRQUJBb0lCQVFDS2xDMk9RL2o3L0s2LwpoYlJpWlByZ2RMS1oxVGpBSnpGUW1Ga2lEQ2loZjlsaW02UTJ5TS9sUXhiUjhLVWZXMlhpZ3gzWVpQNDBYL09rCnhzUVVEMnhnTDZvWmtlem5TRkZVaWk5aHpGRmZEcHNWRnBVUTdWeWJGODhtb25aSFBpbVRXSSt6aklvRGdIU3gKK2pTU0E4SlM4cmVLcVhXMk4zQXkvenJGOURreEFsN09Tc0hRZHYzbXpHQ3owLzY2Ym1jTHl0OWdneS96V0F1bQpUcmlRTXFLUGdvWENUaVdnRkxNWWFJMzczVU96azFTdFJTakJyYmhVN29CNW5kMHNOYTduV05nVXhnVGwxajJwClpYUVgyN080TG92dHNndUMrRGk1TDlUY1R2VTZZMzhrOEdnczJXcG5zUHIwY014d1pCcDBNNllkczNhQ3hVekQKdzBXcHBjQUJBb0dCQVBMUStEdk4wZTZzTE1KbG9jYmhTalhwS1FsdWxTS3owYjRIdnI3UGdxbEswZmVuc012RApPV2ZhUFprQkdocWxmRGlwZkFZY09KZXNXV3ZUa3JpdU1rclIxNi9KSU5FbmVXK1ZVQmExVXFrWVhZQWprZHRLCmFRVGFPVDFaeXRmZ0k2cjdSaW1zT1ZrZ01hVGR5NThiUmxGaTZIRE1rTm9HdDNCcjNEc0owbGVCQW9HQkFPK3EKbFRFYkI4RjNBd1ZHQjRZRjJiMEJROWs3RG5SelkxNXJwODhFVTJWbUZvNjRIVG1qbWpXVVlhakRjN2lqWTI5WApmUDBZUjVFQzBMSGxqS2NsTE1ZU1IwNkFpejlTWm9RVmlYWjExc3ZzTHdaRE85cmFEQk5mTWpPdTRRUEowTHBnClVOSWdreGxFUEIwMUZOaXVJaUpvQTFsTEhBSGFJWWJmUFBibFJSaXBBb0dBT0JydThLcWJFbUg0S2FiZ0hac2EKMGFBaFdrdVI3Q1hPbGZFbU11S3gxem94ajk3UWJCU2M1QkU2WUdzdncrNXU2SXpJMm9TVTB2OEEzbmhSazVpMAppRE02ZWlTb0Q0dm1kRkQwNDNwY01qUXVEcGlwY0JrZWNQK1hjRVNhS1ExaVVIU2svcVlMempzeEhWNGVXWklzCnlrdG5XQUQ4aTFRMytLTURqU1MwMUlFQ2dZQmMyTHZWZTBCRTdjTW96dGxwVFdqdDlNaUJKb1RTRGtXbnRaTWIKK3ZRSDYwVy80b25INDU2Qk5VdWtJcHY1SXFzSjNsM1lld2gyb0IyVFhYZGc1V0QwRnU2eTljOThKNEw1bHBKYgpad2xnbE00ZTRmc1ZMTFhTNTJVK2FuaFhqRjZsWlZ6S0dyNkI0bEpiaWszYUo1T251cDNaZ09TSHZ5YVA1bm5xCnVDVk5pUUtCZ0Y2YTU1NXZ0WC82aGluMUlMY0FOeHl3dmF1a0lvK041UWg0TUppdGgyRmFoSTVJT0t6KzBzVksKZUptRSt2YUsyL1VldVpVREdkL0R2dkhidmxKZkJ1YmpOaHAyTENqRHFPWHk0S2hQZkluakVKSlNlaWtKc3Q0ZApqL2trRUg4dW1Ca3FkVEVHZ21sbk14dTBIdjBING8ybjhOWmgyQ1pyN2I2SnRqTGVweGVUCi0tLS0tRU5EIFJTQSBQUklWQVRFIEtFWS0tLS0t
----
-apiVersion: admissionregistration.k8s.io/v1
-kind: ValidatingWebhookConfiguration
-metadata:
-  name: linkerd-sp-validator-webhook-config
-  labels:
-    linkerd.io/control-plane-component: destination
-    linkerd.io/control-plane-ns: linkerd
-webhooks:
-- name: linkerd-sp-validator.linkerd.io
-  namespaceSelector:
-    matchExpressions:
-    - key: config.linkerd.io/admission-webhooks
-      operator: NotIn
-      values:
-      - disabled
-  clientConfig:
-    service:
-      name: linkerd-sp-validator
-      namespace: linkerd
-      path: "/"
-    caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURUVENDQWpXZ0F3SUJBZ0lSQUpQZTNBcE1hT1Jwb1NPYmxCMFIxbVF3RFFZSktvWklodmNOQVFFTEJRQXcKS3pFcE1DY0dBMVVFQXhNZ2JHbHVhMlZ5WkMxemNDMTJZV3hwWkdGMGIzSXViR2x1YTJWeVpDNXpkbU13SGhjTgpNakl3TkRFMU1UTXhPREF3V2hjTk1qTXdOREUxTVRNeE9EQXdXakFyTVNrd0p3WURWUVFERXlCc2FXNXJaWEprCkxYTndMWFpoYkdsa1lYUnZjaTVzYVc1clpYSmtMbk4yWXpDQ0FTSXdEUVlKS29aSWh2Y05BUUVCQlFBRGdnRVAKQURDQ0FRb0NnZ0VCQU9OUzVBYmcrMkxlVnJYTlJyQzFDY1pHM08xK1V5NDh6amxGRDNIdjNxbytHSjhMb1BvSQozQnJIRXhuOGRQcVIwa0xuRnRWNG0vOWZnQlRnL2dUWFRSaEZ5QlRqcElHRklVekMwYUpFTXJnaGx3cERVZmJKCjJoN2pRYlVRNVlJN2tqVWU0UU5iOHBIYTFpK3FpYW9KVzM1WE5qZkhhT0VGRUpLMDhGamhpNUZCQ2FhU0pHVXEKS0h3K0ZDZHZ6U1lzZDcrVlA1OFllRHVwS1Njd25xSmpxTXdCeDRIZUVNVTJ4bXc4ZHpYcC9hSE9ZZndER1RCVwpzNFIweVpxUFgzcnBpeFJiUmUrbERWK3pSakl6UGpWcHRmQ1NTdW9GSWdkZFlsdURIS0gzdkNXTkF1TWZVaHRYCmFYcmFDaFJqTUw3MFFyekN2bW5iaUt0bis0NEwweTdVM0NrQ0F3RUFBYU5zTUdvd0RnWURWUjBQQVFIL0JBUUQKQWdXZ01CMEdBMVVkSlFRV01CUUdDQ3NHQVFVRkJ3TUJCZ2dyQmdFRkJRY0RBakFNQmdOVkhSTUJBZjhFQWpBQQpNQ3NHQTFVZEVRUWtNQ0tDSUd4cGJtdGxjbVF0YzNBdGRtRnNhV1JoZEc5eUxteHBibXRsY21RdWMzWmpNQTBHCkNTcUdTSWIzRFFFQkN3VUFBNElCQVFCZ1lvM2hqQWxGd253S0cxTGJicE5jNUo3SHp6Lzh6azdHdGZ6UzFtMFgKMjRZK2Zvb0JCT25LbVJLSWtCYTRzWEhtWGp3L2k0dlYrRWNOa2FKVEZzNDUyREc1WW9aRjlnclpZWkRzaEhzRApRWkdMN2pBbE13OWhZeTR2Q1R1NzdUNXJYYVp2THVJVG9UZ3g2NXhtYkoyWHB6ejR2SU1ad3hyd0h5MmJ1d0huCk1odHJ2RyszQ3I1WjNRLy9sTjFKS3p1dVpNR0YxOVNSTTVZbmtTSHJsS05FQjNkL2diR0hzM3lOZlV3ZmtQZFAKY1pHbTIvbzUvSFN0M2tzV2lSV3YyN1puV25pWHIwZzN1OG44d1FtQ2p4aHp2bEg5K2NsRFpXcXdXdVk3SGV5eApxUkJMYmUrMDgwdGkwYTQraEt4ZTlOMkhlRU91WW44aGV0cXFsRjA4ZHJEbAotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0t
-  failurePolicy: Ignore
-  admissionReviewVersions: ["v1", "v1beta1"]
-  rules:
-  - operations: ["CREATE", "UPDATE"]
-    apiGroups: ["linkerd.io"]
-    apiVersions: ["v1alpha1", "v1alpha2"]
-    resources: ["serviceprofiles"]
-  sideEffects: None
----
-kind: Secret
-apiVersion: v1
-metadata:
-  name: linkerd-policy-validator-k8s-tls
-  namespace: linkerd
-  labels:
-    linkerd.io/control-plane-component: destination
-    linkerd.io/control-plane-ns: linkerd
-  annotations:
-    linkerd.io/created-by: linkerd/cli edge-22.3.4
-type: kubernetes.io/tls
-data:
-  tls.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURXRENDQWtDZ0F3SUJBZ0lRYldybjBCRnAxUmZNL3QwdHZaQ0J3ekFOQmdrcWhraUc5dzBCQVFzRkFEQXYKTVMwd0t3WURWUVFERXlSc2FXNXJaWEprTFhCdmJHbGplUzEyWVd4cFpHRjBiM0l1YkdsdWEyVnlaQzV6ZG1NdwpIaGNOTWpJd05ERTFNVE14T0RBd1doY05Nak13TkRFMU1UTXhPREF3V2pBdk1TMHdLd1lEVlFRREV5UnNhVzVyClpYSmtMWEJ2YkdsamVTMTJZV3hwWkdGMGIzSXViR2x1YTJWeVpDNXpkbU13Z2dFaU1BMEdDU3FHU0liM0RRRUIKQVFVQUE0SUJEd0F3Z2dFS0FvSUJBUURIT0ZPUG9LTi9IQ1l0SjdzMHlFaVhrY2lMd1YrOUVGbk9OdlZZMkVhMQpxd3RnQTl5U2hwQVg3RmNwQ0NzQVVTV281ZTlKalFKN2tIbkN1WVFac1VSaVhYZmkxMWJ2Z3hkeU9LTGg5Q0NOCmsra1hnUU90cnRyY3RmQmlOU1hEaUZlVk1LMUJGT1pzSUVYaFdkVGRPdnBUL0x2TnBsUWU3b1o3czBIZ3R2MnUKTVptUExvSkU0UGo3SlJ3S2tMMkZQUkZYN3JZRW16MHlCaGRESmlSRjdoOUhWRWhYWE5SNnNBMlpJQVNTMW4vUQo4aWo3S3hKalovWHU0NEY0MW1oS2FGOWVKY3lla3ZpYTBLNHpmbkk2NjFiRndMcFBZY010UDBwRUZvVE40M0xBCnQ5VGx5anovR1hCOHhlTjdmbnVkZ09Odkh2UmROVjg1WUN0dTRQM2d0RnhmQWdNQkFBR2pjREJ1TUE0R0ExVWQKRHdFQi93UUVBd0lGb0RBZEJnTlZIU1VFRmpBVUJnZ3JCZ0VGQlFjREFRWUlLd1lCQlFVSEF3SXdEQVlEVlIwVApBUUgvQkFJd0FEQXZCZ05WSFJFRUtEQW1naVJzYVc1clpYSmtMWEJ2YkdsamVTMTJZV3hwWkdGMGIzSXViR2x1CmEyVnlaQzV6ZG1Nd0RRWUpLb1pJaHZjTkFRRUxCUUFEZ2dFQkFIa21tWkNHQ21jZnM3WTM0WnVhaWR0blkxa3YKOTAvd2lKYllzYUl0RTNVWnJ5Q3lNbDdXK2Z6Y0gwa2RqcGlJSzEvanE2NWJaRDFoR1VtMGxRZmVMdFZhVVdxVQpDbCtFdytCR0FIUjI3WlRsVzVacWhKbnJKeS9BdVRxbEdiUTB1bmt6eFJrSWUxQnlPM0wrbStzaWhPQU1sR0h5Ck1Ldlc4czFKUkgvbWhITmJWSkVyOUFPNkd2RGUvRUVSRzlkZ1VqSjBMUVNyTXZWelVlK3hvbUpzTDZ3cENJWlMKWXFtbzJCZTlKY1Zra0ViUWhWYkkrdFlLMTRnUzA1RU5WeEZyTFRlUnpERkNHdWtnNWUwWkZ5eVNqeFQ2eUJZdwpNS094K3FuRHhsWFlGdVV4NTQ0K3hPZEJZU1EzZWRXSGJVa3NpLzJLRjlNOHNBaitIUzFjTUd0WGdlQT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQ==
-  tls.key: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFb3dJQkFBS0NBUUVBeHpoVGo2Q2pmeHdtTFNlN05NaElsNUhJaThGZnZSQlp6amIxV05oR3Rhc0xZQVBjCmtvYVFGK3hYS1FnckFGRWxxT1h2U1kwQ2U1QjV3cm1FR2JGRVlsMTM0dGRXNzRNWGNqaWk0ZlFnalpQcEY0RUQKcmE3YTNMWHdZalVsdzRoWGxUQ3RRUlRtYkNCRjRWblUzVHI2VS95N3phWlVIdTZHZTdOQjRMYjlyakdaank2QwpST0Q0K3lVY0NwQzloVDBSVis2MkJKczlNZ1lYUXlZa1JlNGZSMVJJVjF6VWVyQU5tU0FFa3RaLzBQSW8reXNTClkyZjE3dU9CZU5ab1NtaGZYaVhNbnBMNG10Q3VNMzV5T3V0V3hjQzZUMkhETFQ5S1JCYUV6ZU55d0xmVTVjbzgKL3hsd2ZNWGplMzU3bllEamJ4NzBYVFZmT1dBcmJ1RDk0TFJjWHdJREFRQUJBb0lCQUhic1p1VnNUVzFKam5pUwpLU3kvQ3FhQVBpay9URGwra3oySWpUbDJFZS9NcFVPeHluQWxwOHJBS04rem9vZlQ2UmxEK1czOG9TakYvQW1ECjJSbkZPajlGOEpVWFd5d3JJMG5xQ1VHOUM5bTRIQU1OM3ZaRlZSMC85cm1KWkh1dTNpbVBIejJramxDcGkwMlUKNUg4VC8rODNCWjBqMXorSHYvd0Q3Q1dLMXpDdUdTa0tpWUU1Y2hRV3lNbnl1bk0zc1hPbm5LM3Y1bnM2bVFQUQpsOUVTRjdtc3ZTSDREcFlBS3NBbzNmTUdWU2NPQXZwZ1ZXWVJrVW15UnczdlV5M1BSZXQ5QXhCVVd1RjAzOVFPCkFUSDR6Njc5ZlFuQm9oQVRwWnRJY2dYeDh4TGc1TEJzRGRUL0M1ZkwxUWtHT2pMeVRMS2c3MGsxS2Z3WEE1K1gKWmgrY3d3RUNnWUVBN25iQjUyZ0JYTW8va01pQVNsNTlUYldqSEJ3eE5naU1xQVpCZlV4dWpzbXVpN1I1alBCagpWbCs2Y25qVzNwbmJ2TzY2bnhxSWxQUWR2SG96ZS9GOXZNNlFtWTRCc0taMFJYdWRzRERPd0JPdk5BMjNscC9OCm1WVDRoMEdWWUI2OHZpVzBVaTd6a3dpaTc4NVpFT1B5UEpYbm53TE1jYjhneDlNeVV2V2hzVUVDZ1lFQTFkN0cKM1Q0eWZ3L1J5aC9lMGY3QTRxUlgwcERLaDk0dEh2OUVqdUlWOVVPbm1tSGN6REUvdmNkZXN2MlZrY05jeEJJdApEV2tuRElUcFZmWC9FRG1sNm1ENUUrODJQUFprSDBRMnU2M2l1MnQwZWlFcUo5UjFIMERzNE9Kb0FVeStZVDllCkZDbDJkelhlLzFHRGtsOGU5NlNvKzlreVJIWGJXaGI0Z2dPUkJaOENnWUVBMzhEREZSVThJZ3NNTmhoTWVIdk0KNjN2QnZ3Q2RGR3hWUHR3UDJ6ZzZqUFNsT1NWdzRGUTNnYloxUmpBb3ZkcDBtd1VPUzNna0xGQWJEdDFETGN0ZApCaXAwK0FDTmlXbkdzK1BZQkpqbmhzZHhvRkEyc2Jqa3ZEbEVzZlZSNmswdElPWlVHc0UvZi9tY21aTnZjeS9QCi9oVlNycHQ3cGtlR3hMbGhBUUxHWTRFQ2dZQXVObG9BR2wxczZTMHFvS0pUKzlrUDMvVCtFYjFCaUhkMWVERUgKTXNFTjR4V0hIVmhKWXVia0NmMWpiYm53NmliVVV4MGJCYnFqVU9EZWF5NDNBazNnakIybCtnMWROTnhEaVVqTwpXdTlnRWdMMEZOQjRGTWROL29od3Uxcy8xS1phZXdmSUVZR0Fsc3BkbnU1d0pVK2FzU0MyY3FNUytlaHcyZi9PCmtCaTQvd0tCZ0N3R0tLZGF4MnRzWVdVdkhEb1RlZXc5cWtkTzZnSnlSOHJ3dmRtWEFuYUh1SnF4d1hUTi84dFkKSTROdVJWb0ovRk9FVHh5Mk5pbndsRW1xOVFoeGFKQUFBVk9pY3FaS2pLMG9GeWtYQTBjL3g3Mk94VW11NTBkMQoyWS83b2p3N1VPc1Z0U0VCU0dCZ1Zrbksybmdvb2xoMitQbkVRRmV0YnBXZE1iNjRGZXk2Ci0tLS0tRU5EIFJTQSBQUklWQVRFIEtFWS0tLS0t
----
-apiVersion: admissionregistration.k8s.io/v1
-kind: ValidatingWebhookConfiguration
-metadata:
-  name: linkerd-policy-validator-webhook-config
-  labels:
-    linkerd.io/control-plane-component: destination
-    linkerd.io/control-plane-ns: linkerd
-webhooks:
-- name: linkerd-policy-validator.linkerd.io
-  namespaceSelector:
-    matchExpressions:
-    - key: config.linkerd.io/admission-webhooks
-      operator: NotIn
-      values:
-      - disabled
-  clientConfig:
-    service:
-      name: linkerd-policy-validator
-      namespace: linkerd
-      path: "/"
-    caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURXRENDQWtDZ0F3SUJBZ0lRYldybjBCRnAxUmZNL3QwdHZaQ0J3ekFOQmdrcWhraUc5dzBCQVFzRkFEQXYKTVMwd0t3WURWUVFERXlSc2FXNXJaWEprTFhCdmJHbGplUzEyWVd4cFpHRjBiM0l1YkdsdWEyVnlaQzV6ZG1NdwpIaGNOTWpJd05ERTFNVE14T0RBd1doY05Nak13TkRFMU1UTXhPREF3V2pBdk1TMHdLd1lEVlFRREV5UnNhVzVyClpYSmtMWEJ2YkdsamVTMTJZV3hwWkdGMGIzSXViR2x1YTJWeVpDNXpkbU13Z2dFaU1BMEdDU3FHU0liM0RRRUIKQVFVQUE0SUJEd0F3Z2dFS0FvSUJBUURIT0ZPUG9LTi9IQ1l0SjdzMHlFaVhrY2lMd1YrOUVGbk9OdlZZMkVhMQpxd3RnQTl5U2hwQVg3RmNwQ0NzQVVTV281ZTlKalFKN2tIbkN1WVFac1VSaVhYZmkxMWJ2Z3hkeU9LTGg5Q0NOCmsra1hnUU90cnRyY3RmQmlOU1hEaUZlVk1LMUJGT1pzSUVYaFdkVGRPdnBUL0x2TnBsUWU3b1o3czBIZ3R2MnUKTVptUExvSkU0UGo3SlJ3S2tMMkZQUkZYN3JZRW16MHlCaGRESmlSRjdoOUhWRWhYWE5SNnNBMlpJQVNTMW4vUQo4aWo3S3hKalovWHU0NEY0MW1oS2FGOWVKY3lla3ZpYTBLNHpmbkk2NjFiRndMcFBZY010UDBwRUZvVE40M0xBCnQ5VGx5anovR1hCOHhlTjdmbnVkZ09Odkh2UmROVjg1WUN0dTRQM2d0RnhmQWdNQkFBR2pjREJ1TUE0R0ExVWQKRHdFQi93UUVBd0lGb0RBZEJnTlZIU1VFRmpBVUJnZ3JCZ0VGQlFjREFRWUlLd1lCQlFVSEF3SXdEQVlEVlIwVApBUUgvQkFJd0FEQXZCZ05WSFJFRUtEQW1naVJzYVc1clpYSmtMWEJ2YkdsamVTMTJZV3hwWkdGMGIzSXViR2x1CmEyVnlaQzV6ZG1Nd0RRWUpLb1pJaHZjTkFRRUxCUUFEZ2dFQkFIa21tWkNHQ21jZnM3WTM0WnVhaWR0blkxa3YKOTAvd2lKYllzYUl0RTNVWnJ5Q3lNbDdXK2Z6Y0gwa2RqcGlJSzEvanE2NWJaRDFoR1VtMGxRZmVMdFZhVVdxVQpDbCtFdytCR0FIUjI3WlRsVzVacWhKbnJKeS9BdVRxbEdiUTB1bmt6eFJrSWUxQnlPM0wrbStzaWhPQU1sR0h5Ck1Ldlc4czFKUkgvbWhITmJWSkVyOUFPNkd2RGUvRUVSRzlkZ1VqSjBMUVNyTXZWelVlK3hvbUpzTDZ3cENJWlMKWXFtbzJCZTlKY1Zra0ViUWhWYkkrdFlLMTRnUzA1RU5WeEZyTFRlUnpERkNHdWtnNWUwWkZ5eVNqeFQ2eUJZdwpNS094K3FuRHhsWFlGdVV4NTQ0K3hPZEJZU1EzZWRXSGJVa3NpLzJLRjlNOHNBaitIUzFjTUd0WGdlQT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQ==
-  failurePolicy: Ignore
-  admissionReviewVersions: ["v1", "v1beta1"]
-  rules:
-  - operations: ["CREATE", "UPDATE"]
-    apiGroups: ["policy.linkerd.io"]
-    apiVersions: ["v1alpha1", "v1beta1"]
-    resources:
-    - serverauthorizations
-    - servers
-  sideEffects: None
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: linkerd-policy
-  labels:
-    app.kubernetes.io/part-of: Linkerd
-    linkerd.io/control-plane-component: destination
-    linkerd.io/control-plane-ns: linkerd
-rules:
-  - apiGroups:
-      - ""
-    resources:
-      - pods
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - policy.linkerd.io
-    resources:
-      - servers
-      - serverauthorizations
-    verbs:
-      - get
-      - list
-      - watch
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: linkerd-destination-policy
-  labels:
-    app.kubernetes.io/part-of: Linkerd
-    linkerd.io/control-plane-component: destination
-    linkerd.io/control-plane-ns: linkerd
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: linkerd-policy
-subjects:
-  - kind: ServiceAccount
-    name: linkerd-destination
-    namespace: linkerd
----
-###
-### Heartbeat RBAC
-###
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: linkerd-heartbeat
-  namespace: linkerd
+    linkerd.io/created-by: linkerd/cli stable-2.11.2
   labels:
     linkerd.io/control-plane-ns: linkerd
-rules:
-- apiGroups: [""]
-  resources: ["configmaps"]
-  verbs: ["get"]
-  resourceNames: ["linkerd-config"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: linkerd-heartbeat
-  namespace: linkerd
-  labels:
-    linkerd.io/control-plane-ns: linkerd
-roleRef:
-  kind: Role
-  name: linkerd-heartbeat
-  apiGroup: rbac.authorization.k8s.io
-subjects:
-- kind: ServiceAccount
-  name: linkerd-heartbeat
-  namespace: linkerd
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: linkerd-heartbeat
-  labels:
-    linkerd.io/control-plane-ns: linkerd
-rules:
-- apiGroups: [""]
-  resources: ["namespaces"]
-  verbs: ["list"]
-- apiGroups: ["linkerd.io"]
-  resources: ["serviceprofiles"]
-  verbs: ["list"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: linkerd-heartbeat
-  labels:
-    linkerd.io/control-plane-ns: linkerd
-roleRef:
-  kind: ClusterRole
-  name: linkerd-heartbeat
-  apiGroup: rbac.authorization.k8s.io
-subjects:
-- kind: ServiceAccount
-  name: linkerd-heartbeat
-  namespace: linkerd
----
-kind: ServiceAccount
-apiVersion: v1
-metadata:
-  name: linkerd-heartbeat
-  namespace: linkerd
-  labels:
-    linkerd.io/control-plane-component: heartbeat
-    linkerd.io/control-plane-ns: linkerd
+spec:
+  group: split.smi-spec.io
+  scope: Namespaced
+  conversion:
+    strategy: None
+  names:
+    kind: TrafficSplit
+    listKind: TrafficSplitList
+    shortNames:
+      - ts
+    plural: trafficsplits
+    singular: trafficsplit
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required:
+                - service
+                - backends
+              properties:
+                service:
+                  description: The apex service of this split.
+                  type: string
+                backends:
+                  description: The backend services of this split.
+                  type: array
+                  items:
+                    type: object
+                    required: ['service', 'weight']
+                    properties:
+                      service:
+                        description: Name of the Kubernetes service.
+                        type: string
+                      weight:
+                        description: Traffic weight value of this backend.
+                        x-kubernetes-int-or-string: true
+      additionalPrinterColumns:
+      - name: Service
+        type: string
+        description: The apex service of this split.
+        jsonPath: .spec.service
+    - name: v1alpha2
+      served: true
+      storage: false
+      additionalPrinterColumns:
+      - name: Service
+        type: string
+        description: The apex service of this split.
+        jsonPath: .spec.service
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required:
+                - service
+                - backends
+              properties:
+                service:
+                  description: The apex service of this split.
+                  type: string
+                backends:
+                  description: The backend services of this split.
+                  type: array
+                  items:
+                    type: object
+                    required: ['service', 'weight']
+                    properties:
+                      service:
+                        description: Name of the Kubernetes service.
+                        type: string
+                      weight:
+                        description: Traffic weight value of this backend.
+                        type: number
+  preserveUnknownFields: false
 ---
 ###
 ### Proxy Injector RBAC
@@ -1089,11 +1160,11 @@ metadata:
     linkerd.io/control-plane-component: proxy-injector
     linkerd.io/control-plane-ns: linkerd
   annotations:
-    linkerd.io/created-by: linkerd/cli edge-22.3.4
+    linkerd.io/created-by: linkerd/cli stable-2.11.2
 type: kubernetes.io/tls
 data:
-  tls.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURVekNDQWp1Z0F3SUJBZ0lSQUxYaUdoZjVwK0tVK2VmTFZUUFBuVWt3RFFZSktvWklodmNOQVFFTEJRQXcKTFRFck1Da0dBMVVFQXhNaWJHbHVhMlZ5WkMxd2NtOTRlUzFwYm1wbFkzUnZjaTVzYVc1clpYSmtMbk4yWXpBZQpGdzB5TWpBME1UVXhNekUzTlRsYUZ3MHlNekEwTVRVeE16RTNOVGxhTUMweEt6QXBCZ05WQkFNVElteHBibXRsCmNtUXRjSEp2ZUhrdGFXNXFaV04wYjNJdWJHbHVhMlZ5WkM1emRtTXdnZ0VpTUEwR0NTcUdTSWIzRFFFQkFRVUEKQTRJQkR3QXdnZ0VLQW9JQkFRRE5Ed0daUi80d1BIMGVmTXRJYW1IekdvSVFBM1dIVzBGZDRBZXZ6dTNIenA0Vwp6c3N6VnBMcXJNcXBoQzE2K1djUGZxRmpvdkFRL3ZlUjhiQTYxNGt2NHZyaU8vTWh3WU9zQWc5ZXlkWk4vYUJwCkJwUHpjeDRjTTRMMTYxMi9hM2kxR1RqOFpVVXhZdy9HbytZL3RKcFcwMm5LVjNvNENiaWlvWXNtZTYvbWJXREUKdXJNTWZFdkpoaXRxUmFJaEx4VmpUbkNlSU5najlOR3JqY2k5dk1SVmV6RFg0d3BHTkhsM2gwMnBaWTExcmZvLwpwQVhMRGtHbTk0bGVlTlU2YkhncW9VYzBXY3Ayazk0ZEhBZll0MGY2VEdCSWtIdFVWcnVJNVlTRzJKelkrTklYCldzWktRYmw5STBONHVLcEZQQ2Iwekc1QU5JTE9OTU44YjNQTHh2eHZBZ01CQUFHamJqQnNNQTRHQTFVZER3RUIKL3dRRUF3SUZvREFkQmdOVkhTVUVGakFVQmdnckJnRUZCUWNEQVFZSUt3WUJCUVVIQXdJd0RBWURWUjBUQVFILwpCQUl3QURBdEJnTlZIUkVFSmpBa2dpSnNhVzVyWlhKa0xYQnliM2g1TFdsdWFtVmpkRzl5TG14cGJtdGxjbVF1CmMzWmpNQTBHQ1NxR1NJYjNEUUVCQ3dVQUE0SUJBUUEyRXpjeWRVWW81S1hLOENoVzJSMXoyS1Z1eno5d0FJSUYKRUxNYWdQSnp0NE9tcjN6QzNlVi9iT1l1WnFKYjBPcndQNWlOaDM2K1BzcHdGKzkrZzZGejJ3ZGhJV1BvWjhwUApYZTNWb3YzNDd4RTY1TFpYY2Vlbmd1VnhycUlQSUY0VXNNcmdleWNsN2dETlMvY05ZQk56WklydVh0K1h2alNnCkd0cXNNNGdDTW96bjMxd2R0aFBPZS9BdHpxcGhCeGVpeFVrdm9mRmt0ZklxQm9rMm9zRHJkUk5xMGpXT2J1RlQKQ21nMXBNS1JkT0Foa0QrSm5lWmwyVXN3UlJEVDFKRVFtbE8xMEFabGwrOGNRUXgzTzZlcStGdjVPQmIwVW14Ygo2bjZIYVhjVlhMbnRXYlFkcXM4d2pKSW1sSWx4U0xrUjRpU051eDNkUXZ2SU5hNUF4ZG9TCi0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0=
-  tls.key: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFcFFJQkFBS0NBUUVBelE4Qm1VZitNRHg5SG56TFNHcGg4eHFDRUFOMWgxdEJYZUFIcjg3dHg4NmVGczdMCk0xYVM2cXpLcVlRdGV2bG5EMzZoWTZMd0VQNzNrZkd3T3RlSkwrTDY0anZ6SWNHRHJBSVBYc25XVGYyZ2FRYVQKODNNZUhET0M5ZXRkdjJ0NHRSazQvR1ZGTVdNUHhxUG1QN1NhVnROcHlsZDZPQW00b3FHTEpudXY1bTFneExxegpESHhMeVlZcmFrV2lJUzhWWTA1d25pRFlJL1RScTQzSXZiekVWWHN3MStNS1JqUjVkNGROcVdXTmRhMzZQNlFGCnl3NUJwdmVKWG5qVk9teDRLcUZITkZuS2RwUGVIUndIMkxkSCtreGdTSkI3VkZhN2lPV0VodGljMlBqU0YxckcKU2tHNWZTTkRlTGlxUlR3bTlNeHVRRFNDempURGZHOXp5OGI4YndJREFRQUJBb0lCQVFDS3BRWEl0S09KeTZ3eApLK0ZxVWZ0dUdsTXNMcHFOYlVieUNPSkpuVmlxQ3VwYXMzRXlnZXVOM2t5Y2R2RWxQM0hPU1NrbnErZ3pKYUVRClBXQ1JPRi9hVDlhZmxqY2FjTFB0WGVzMGhMVndQL2J3YS9FbTNvUFNQNFhoYmtVUmdzRzNlSmxPRmM3RnlKdkgKQzlSRzZINmVEQTF3TU50Qy9sZW5KaUJtWWFTWjM4MFkvNjNCZDUxbGRJNDZuSUcyUHo3SVJCU2d3NHpPVTZFZgo2QXRpRjhEN0gzOG9DUGh2dXhjV1pldXMxazhaRS9XeSs0Ky93RXNjY0Z3ck1KcFA1dFNkM1lIVEozY0dOZGdqCkdPekR6UDE2eEUzcVRGY0krcEJqOHFxc0NVYmF5L2tOZTdxcFlCOW1HYWxlMVpQUzBaemxyWjFoUzNPc2M0cGUKcXBtOXlPSDVBb0dCQU5BeWFwWEJQNzRFNFdtRXpMMzRDenZJV1NkTHRHZnBhbFRQeDRTdDlnWUx0ZmtMTmplcQpmeldlRG91YTdoVHR1UWNXZnpzQVZKMVl1V284KzFqOG4rdEN3SHQxQ0gwNFoyVFI1YmxoMzRLeVUzZFUxZGxBCjU0RHNITE1Pdno4RUw2NjV1TmU2REtLdXp6U3puclJ1VC9pcUsyWjIzVUY4ZjdoMjNGZlRKQlREQW9HQkFQd2sKSDNiOS9FbVE3OFcxWGFTM0hsc0lRVGwyeS9hcGx6SCtGMGVvL2FPa3pTQWpZWHBEUld3a3g0VXFLRmc3eFVoQgpiaUFsQk9HSkZvYWo3ck41eDFNZlhPOStaVmVoNWJNRmVUS0p3bUdiSWZjemlGYmh4TnBWOWFvSTRUTWwwZHRtCmhtL0kzSDB2WHI0NW5vWUVSeXQrWExsNW5zWHFaVHhlNUlFQ1QwN2xBb0dBYzVqS25VT2pSTG9vL2hHQ0xLZ2cKZEowVkEwQ0Jkb0NmVFYvZ2c4YWpKMUF4UlluNEhJaEtBVmMwOUVhZGtuazdscmZqQkx0MlA3Y1htK2tvRll5TwpybTF0dWg2TkRCblpMcDFzVTdZSUIrVkRlcXBiNGppclVXWEh1Wk9pbERhYTB3VERvT1BvU0J1UGFNK2llc1FWCkd4aEE2Szl1d2dHQ1dNV0dLaTFOaDBrQ2dZRUFvTTFZMDhaL1UxdC96eE12dVpDZloyY0lVZUdWaXFYMXF3aGwKU0dwWitEZHVLb1RsOGRkZE91N3AzOTlYQTQ1Njd1M3JrY3lLSkZ3TlphaSszdTlYVTRlNCtYUWVwWmkycVVsZwpWZjdOWFBwVzJ4U2VhdXBwWk9WVld5OTJqK3dhdmxYUWZ4SVdyQys5dUl0K3NmR2dnZmlBb2prU0xSNmptYkRiCkFmdTdJSkVDZ1lFQXhiYTZ6NEZYRFREamtNWGwxWlJjUVlJNWx5QkRwNUNVcVJjRjhSOWQwQWFwSHRvQzhnbEEKTGcwcmkxRHVUa29iV3Q4T3ZmNFVNLy94NE1jdFkvdUdqWFJMbUJ0UHozTmNqNE4yV0xYSXd2SlNzZ2ZGbVNmdQpuVnBrdC9zbUF3UXU4alJSczVFWkk4eHpPY2xkMWxZbllqNmY2R2hUSFF1TVVvM2JhOHdlL25vPQotLS0tLUVORCBSU0EgUFJJVkFURSBLRVktLS0tLQ==
+  tls.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURVekNDQWp1Z0F3SUJBZ0lSQUxYTzhiYk1BeUpjWElKUytkVE56TVl3RFFZSktvWklodmNOQVFFTEJRQXcKTFRFck1Da0dBMVVFQXhNaWJHbHVhMlZ5WkMxd2NtOTRlUzFwYm1wbFkzUnZjaTVzYVc1clpYSmtMbk4yWXpBZQpGdzB5TWpBMU1qRXlNREV4TUROYUZ3MHlNekExTWpFeU1ERXhNRE5hTUMweEt6QXBCZ05WQkFNVElteHBibXRsCmNtUXRjSEp2ZUhrdGFXNXFaV04wYjNJdWJHbHVhMlZ5WkM1emRtTXdnZ0VpTUEwR0NTcUdTSWIzRFFFQkFRVUEKQTRJQkR3QXdnZ0VLQW9JQkFRRGllT0lpOFl1dE1IM3kxZHFsYmZWSzJoSHAwVjZFb1lVU0hxMmlKN1YrVWlraQp2alU0Z0RKbDA5bTQ5SHk5a0dQWUVHS3NkTXpCTGswT29adkx0bnB3YXhIUXgrdUlNSlFXTXpzWEhGcFRidTg2CnZVMjBsTlJkdVJSM0FsS2x6T0N3S3V3OFVQNVhKMXI4aGp2WmJEbmJQOXRWSnVSWTZra1hvR1BvTytMcXlCc1EKSi9ETmUvN21vd2JFNmN1SUpMakhCQkR6dW9YZGtWZGRzWWZWZjNkOERGY0M2c3ZFUlFRMDZUSTJJcUF1ei9xUApOSzlMRWZHYmVzRlhnVjdBSmpCQ2FXbDUwODRjdXJiNXZwMFZsYjV3WW0zS2w3K3lhVVZGMUJ4NlJpenRwejVaCjlDYTFrb01HcmlCR2h5YnQrWE83YS9TU2JKK2hxM3dJTXZzNk41Nm5BZ01CQUFHamJqQnNNQTRHQTFVZER3RUIKL3dRRUF3SUZvREFkQmdOVkhTVUVGakFVQmdnckJnRUZCUWNEQVFZSUt3WUJCUVVIQXdJd0RBWURWUjBUQVFILwpCQUl3QURBdEJnTlZIUkVFSmpBa2dpSnNhVzVyWlhKa0xYQnliM2g1TFdsdWFtVmpkRzl5TG14cGJtdGxjbVF1CmMzWmpNQTBHQ1NxR1NJYjNEUUVCQ3dVQUE0SUJBUUNIeDNzNlBJRkh2YWFmSFBQR055OXc1RjZaRWVrV01USFkKVjdxUGtXMHVWa2ZrcTlWckJqLzhpUWlqT3F6OWZKUkVpTzczalJOZG1Gb2N2L3ZPYm9ZNng0ZjROWDA0REZRMwpRdFhqQThTcE1Qa1B4bHhaMklhZnVzTGFtalc2bW9DbXo0RU5ma1NlOGgvS09DUTcyVWgybHlFUlhvTlRteUdMCm1wRHdxZWpIMlRFd3BaRjVVbXVyeHo1eE9UNTVSdW56MXZ4S0dCckNvc00ybjYvclBhRlZQUmJrVEI0Rm5ONVcKQ3lmVFBISFh5SWgrWHBPOEwrcHNtdGZBRjR6bGxxOGM0eGpWTWdSRlJoU1JXbjNZS3pFU2tMckVvMWMyem1nYwpYMVQ5ZGlPUWRSajZYeW1EZ1Rna0kzZXdBR2l4OWo2K3lyUWFQWnB0d2VxN3ZxQmNCU1NDCi0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0=
+  tls.key: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFcFFJQkFBS0NBUUVBNG5qaUl2R0xyVEI5OHRYYXBXMzFTdG9SNmRGZWhLR0ZFaDZ0b2llMWZsSXBJcjQxCk9JQXlaZFBadVBSOHZaQmoyQkJpckhUTXdTNU5EcUdieTdaNmNHc1IwTWZyaURDVUZqTTdGeHhhVTI3dk9yMU4KdEpUVVhia1Vkd0pTcGN6Z3NDcnNQRkQrVnlkYS9JWTcyV3c1MnovYlZTYmtXT3BKRjZCajZEdmk2c2diRUNmdwp6WHYrNXFNR3hPbkxpQ1M0eHdRUTg3cUYzWkZYWGJHSDFYOTNmQXhYQXVyTHhFVUVOT2t5TmlLZ0xzLzZqelN2ClN4SHhtM3JCVjRGZXdDWXdRbWxwZWRQT0hMcTIrYjZkRlpXK2NHSnR5cGUvc21sRlJkUWNla1lzN2FjK1dmUW0KdFpLREJxNGdSb2NtN2ZsenUydjBrbXlmb2F0OENETDdPamVlcHdJREFRQUJBb0lCQUVRZStsNXFhNG8zdU5yUAphc294N2dPSzNyS0hNTGdTWVpXV3RzRzgwZ0hpTXM5cGlWYXFjUDVpSCs1YlZCNHREV3RUV21ybll5T0VpdGNvCjAxVU9XWHZ4S05XMUhPckZPZllIaVBHbHJLSEdENTJLalpJUTVtUWVwTUk3WjZMSm9wZzdBUDRQbXNHYWErcmoKY2FNdnc2Tm9iTkFMTjhwckJudGQyazlqbkJqa2NTWnBhNVdTUGxKME56RGZQYmZKSmJqMFkrSmxKN1pXeEErVAorek90eUZoUkNSV1pTSFhXOGxUWDlnQlJUbHFqL285dC9GQTVFaFcwc1ozbjNCdjBncW9PaUhOVjBLUTFJUEJuCkZpSlNIOFBFaHV3RlhwcXhtaVlkUDlUMFRtSWNURVFld2tSR1htR3lKZjNsT3h2UFRJcmpmZ0RuVSsxeWFpckcKems2N3c3a0NnWUVBN0ZCZ1hMZzlHNlQ4QUJ3T3RoSG5xa0xuM1czNGNQWGlGVmV6ek1WUFlUdUU4aHcvUS9QVQp0ZmVNSVA1a2dORm9TaFcrUGk2aEFnYlZtVk9udGIyZzRsQ0ZFcXhHQ0d1YUFEZEx2dk5oZWRVdStReTYvNUtWClBGbDVFakdhaGxzL1NnUmNkNzVwRDNyMUVPbjBoaVZzaGZEWVVKdmd1RnBZSXp2ZlJnT1cvejBDZ1lFQTlWYWYKSnVnbGN1Y0cxTG5XR2pick5ja1VTQnZRbi83VlE0WjlsWkFrZ0xhQlJibSsxeWpFUDBnNnRSYkVMYTB3VE1ragp6TTRXNlJQUGRpOWpKWU11ZE9qWjA1Y3RMaGJERVVFclVhUldTb2VKTHRlTHA5TjNQOWlqSFhtZFFlVng2UHFWCmRUQlIwVUVsK3dtUzl6VUIybnBwV0dkQU1mZFA3R2xidTNxU003TUNnWUVBMVo1MjdYb1NxMm5CNzZ0dFZRTHMKZzRvRnBiSWljcUtqSkIzcXlBSFpGeEZCeGNicEhkbE9BTXh0SE9vNkdnU3luTDM1QXFjT0h4SGtocjBMand1RApZdkhjeVp0M2wyY0ZpSXB6NjRLQkxDd2RVVDlEejRKSGE0MktGM3RGcjR6T3NtOHMwNFlKM05lT3J5SitTOEdLCno2MS9MYWNyUmh0TkwxU1JLZTVXMGhVQ2dZRUFnTU1CckkzU2VjZSswZzdteThOZkYwOTlrWXJucDlFN1pNRkYKVUNYaXdwc0dwZTJpdDVIeHpiUysreVFEdW1WWElEWEEwRkNwdlpKa0pBY2k1aUUvVktTUkRuZ2Rnajc0Q2lwRgo3Z2R1TXBlSDdFbThSa3k2SFl3NXI5S1FNbkdWbzAxQSs4eHNaSUxveUNSeU9jUmNRS3BXZDh0WTZlQisxZmxGCjU5T2d2L2tDZ1lFQTV5SUx5Zzl2ejVNN3BGbEJ0ZG9NOVdWaWo3NjN5Y3dsRVZraWFmM2VGKzVqeDVSM3pJa0oKY1NmWk5uTjBxbmtOMWhlOEdmOXYwN2FDOHdRdmsxSHQ3SWx6dEdlNVJZWFY0dlBKcU56aHU2SDZqaGpPd08zdwpoTDhpdDhiS3QwQXVQSkQzcUVlMDR1MVNCaHhpQ0V2dUtkZzQ4TnRxNnFtSm5qSS9sUlJEb0ZrPQotLS0tLUVORCBSU0EgUFJJVkFURSBLRVktLS0tLQ==
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingWebhookConfiguration
@@ -1110,19 +1181,12 @@ webhooks:
       operator: NotIn
       values:
       - disabled
-    - key: kubernetes.io/metadata.name
-      operator: NotIn
-      values:
-      - kube-system
-      - cert-manager
-  objectSelector:
-    null
   clientConfig:
     service:
       name: linkerd-proxy-injector
       namespace: linkerd
       path: "/"
-    caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURVekNDQWp1Z0F3SUJBZ0lSQUxYaUdoZjVwK0tVK2VmTFZUUFBuVWt3RFFZSktvWklodmNOQVFFTEJRQXcKTFRFck1Da0dBMVVFQXhNaWJHbHVhMlZ5WkMxd2NtOTRlUzFwYm1wbFkzUnZjaTVzYVc1clpYSmtMbk4yWXpBZQpGdzB5TWpBME1UVXhNekUzTlRsYUZ3MHlNekEwTVRVeE16RTNOVGxhTUMweEt6QXBCZ05WQkFNVElteHBibXRsCmNtUXRjSEp2ZUhrdGFXNXFaV04wYjNJdWJHbHVhMlZ5WkM1emRtTXdnZ0VpTUEwR0NTcUdTSWIzRFFFQkFRVUEKQTRJQkR3QXdnZ0VLQW9JQkFRRE5Ed0daUi80d1BIMGVmTXRJYW1IekdvSVFBM1dIVzBGZDRBZXZ6dTNIenA0Vwp6c3N6VnBMcXJNcXBoQzE2K1djUGZxRmpvdkFRL3ZlUjhiQTYxNGt2NHZyaU8vTWh3WU9zQWc5ZXlkWk4vYUJwCkJwUHpjeDRjTTRMMTYxMi9hM2kxR1RqOFpVVXhZdy9HbytZL3RKcFcwMm5LVjNvNENiaWlvWXNtZTYvbWJXREUKdXJNTWZFdkpoaXRxUmFJaEx4VmpUbkNlSU5najlOR3JqY2k5dk1SVmV6RFg0d3BHTkhsM2gwMnBaWTExcmZvLwpwQVhMRGtHbTk0bGVlTlU2YkhncW9VYzBXY3Ayazk0ZEhBZll0MGY2VEdCSWtIdFVWcnVJNVlTRzJKelkrTklYCldzWktRYmw5STBONHVLcEZQQ2Iwekc1QU5JTE9OTU44YjNQTHh2eHZBZ01CQUFHamJqQnNNQTRHQTFVZER3RUIKL3dRRUF3SUZvREFkQmdOVkhTVUVGakFVQmdnckJnRUZCUWNEQVFZSUt3WUJCUVVIQXdJd0RBWURWUjBUQVFILwpCQUl3QURBdEJnTlZIUkVFSmpBa2dpSnNhVzVyWlhKa0xYQnliM2g1TFdsdWFtVmpkRzl5TG14cGJtdGxjbVF1CmMzWmpNQTBHQ1NxR1NJYjNEUUVCQ3dVQUE0SUJBUUEyRXpjeWRVWW81S1hLOENoVzJSMXoyS1Z1eno5d0FJSUYKRUxNYWdQSnp0NE9tcjN6QzNlVi9iT1l1WnFKYjBPcndQNWlOaDM2K1BzcHdGKzkrZzZGejJ3ZGhJV1BvWjhwUApYZTNWb3YzNDd4RTY1TFpYY2Vlbmd1VnhycUlQSUY0VXNNcmdleWNsN2dETlMvY05ZQk56WklydVh0K1h2alNnCkd0cXNNNGdDTW96bjMxd2R0aFBPZS9BdHpxcGhCeGVpeFVrdm9mRmt0ZklxQm9rMm9zRHJkUk5xMGpXT2J1RlQKQ21nMXBNS1JkT0Foa0QrSm5lWmwyVXN3UlJEVDFKRVFtbE8xMEFabGwrOGNRUXgzTzZlcStGdjVPQmIwVW14Ygo2bjZIYVhjVlhMbnRXYlFkcXM4d2pKSW1sSWx4U0xrUjRpU051eDNkUXZ2SU5hNUF4ZG9TCi0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0=
+    caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURVekNDQWp1Z0F3SUJBZ0lSQUxYTzhiYk1BeUpjWElKUytkVE56TVl3RFFZSktvWklodmNOQVFFTEJRQXcKTFRFck1Da0dBMVVFQXhNaWJHbHVhMlZ5WkMxd2NtOTRlUzFwYm1wbFkzUnZjaTVzYVc1clpYSmtMbk4yWXpBZQpGdzB5TWpBMU1qRXlNREV4TUROYUZ3MHlNekExTWpFeU1ERXhNRE5hTUMweEt6QXBCZ05WQkFNVElteHBibXRsCmNtUXRjSEp2ZUhrdGFXNXFaV04wYjNJdWJHbHVhMlZ5WkM1emRtTXdnZ0VpTUEwR0NTcUdTSWIzRFFFQkFRVUEKQTRJQkR3QXdnZ0VLQW9JQkFRRGllT0lpOFl1dE1IM3kxZHFsYmZWSzJoSHAwVjZFb1lVU0hxMmlKN1YrVWlraQp2alU0Z0RKbDA5bTQ5SHk5a0dQWUVHS3NkTXpCTGswT29adkx0bnB3YXhIUXgrdUlNSlFXTXpzWEhGcFRidTg2CnZVMjBsTlJkdVJSM0FsS2x6T0N3S3V3OFVQNVhKMXI4aGp2WmJEbmJQOXRWSnVSWTZra1hvR1BvTytMcXlCc1EKSi9ETmUvN21vd2JFNmN1SUpMakhCQkR6dW9YZGtWZGRzWWZWZjNkOERGY0M2c3ZFUlFRMDZUSTJJcUF1ei9xUApOSzlMRWZHYmVzRlhnVjdBSmpCQ2FXbDUwODRjdXJiNXZwMFZsYjV3WW0zS2w3K3lhVVZGMUJ4NlJpenRwejVaCjlDYTFrb01HcmlCR2h5YnQrWE83YS9TU2JKK2hxM3dJTXZzNk41Nm5BZ01CQUFHamJqQnNNQTRHQTFVZER3RUIKL3dRRUF3SUZvREFkQmdOVkhTVUVGakFVQmdnckJnRUZCUWNEQVFZSUt3WUJCUVVIQXdJd0RBWURWUjBUQVFILwpCQUl3QURBdEJnTlZIUkVFSmpBa2dpSnNhVzVyWlhKa0xYQnliM2g1TFdsdWFtVmpkRzl5TG14cGJtdGxjbVF1CmMzWmpNQTBHQ1NxR1NJYjNEUUVCQ3dVQUE0SUJBUUNIeDNzNlBJRkh2YWFmSFBQR055OXc1RjZaRWVrV01USFkKVjdxUGtXMHVWa2ZrcTlWckJqLzhpUWlqT3F6OWZKUkVpTzczalJOZG1Gb2N2L3ZPYm9ZNng0ZjROWDA0REZRMwpRdFhqQThTcE1Qa1B4bHhaMklhZnVzTGFtalc2bW9DbXo0RU5ma1NlOGgvS09DUTcyVWgybHlFUlhvTlRteUdMCm1wRHdxZWpIMlRFd3BaRjVVbXVyeHo1eE9UNTVSdW56MXZ4S0dCckNvc00ybjYvclBhRlZQUmJrVEI0Rm5ONVcKQ3lmVFBISFh5SWgrWHBPOEwrcHNtdGZBRjR6bGxxOGM0eGpWTWdSRlJoU1JXbjNZS3pFU2tMckVvMWMyem1nYwpYMVQ5ZGlPUWRSajZYeW1EZ1Rna0kzZXdBR2l4OWo2K3lyUWFQWnB0d2VxN3ZxQmNCU1NDCi0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0=
   failurePolicy: Ignore
   admissionReviewVersions: ["v1", "v1beta1"]
   rules:
@@ -1141,17 +1205,17 @@ metadata:
     linkerd.io/control-plane-component: controller
     linkerd.io/control-plane-ns: linkerd
   annotations:
-    linkerd.io/created-by: linkerd/cli edge-22.3.4
+    linkerd.io/created-by: linkerd/cli stable-2.11.2
 data:
-  linkerd-crds-chart-version: linkerd-crds-1.0.0-edge
   values: |
-    cliVersion: linkerd/cli edge-22.3.4
+    cliVersion: linkerd/cli stable-2.11.2
     clusterDomain: cluster.local
     clusterNetworks: 10.0.0.0/8,100.64.0.0/10,172.16.0.0/12,192.168.0.0/16
     cniEnabled: false
     controlPlaneTracing: false
     controlPlaneTracingNamespace: linkerd-jaeger
     controllerImage: cr.l5d.io/linkerd/controller
+    controllerImageVersion: stable-2.11.2
     controllerLogFormat: plain
     controllerLogLevel: info
     controllerReplicas: 1
@@ -1160,13 +1224,14 @@ data:
       image:
         name: cr.l5d.io/linkerd/debug
         pullPolicy: ""
-        version: edge-22.3.4
+        version: stable-2.11.2
     destinationProxyResources: null
     destinationResources: null
     disableHeartBeat: false
-    enableEndpointSlices: true
+    enableEndpointSlices: false
     enableH2Upgrade: true
     enablePodAntiAffinity: false
+    grafanaUrl: ""
     heartbeatResources: null
     heartbeatSchedule: ""
     highAvailability: false
@@ -1179,35 +1244,36 @@ data:
         tls:
           crtPEM: |
             -----BEGIN CERTIFICATE-----
-            MIIBiDCCAS6gAwIBAgIBATAKBggqhkjOPQQDAjAcMRowGAYDVQQDExFpZGVudGl0
-            eS5saW5rZXJkLjAeFw0yMjAzMjcxNDM3NDVaFw0yMzAzMjcxNDM4MDVaMBwxGjAY
+            MIIBhzCCAS6gAwIBAgIBATAKBggqhkjOPQQDAjAcMRowGAYDVQQDExFpZGVudGl0
+            eS5saW5rZXJkLjAeFw0yMjA1MjEyMDEwNTNaFw0yMzA1MjEyMDExMTNaMBwxGjAY
             BgNVBAMTEWlkZW50aXR5LmxpbmtlcmQuMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcD
-            QgAEYiR07is8ydJD4BRVpWCm5Se7H3CzvBlRRYeaIrNx9Na7bIMQISs7yiZDty3b
-            +j/jEiRMBm4qwGa2ON9UcmSUyqNhMF8wDgYDVR0PAQH/BAQDAgEGMB0GA1UdJQQW
+            QgAEJJIEBUpKEw2jpM1mjg8AC7qKCP/5lnovP/1MiTeL5BOKIu5wFP6cy8hkpq6+
+            9o42FKJiIIolGEl1yh+myYPBHqNhMF8wDgYDVR0PAQH/BAQDAgEGMB0GA1UdJQQW
             MBQGCCsGAQUFBwMBBggrBgEFBQcDAjAPBgNVHRMBAf8EBTADAQH/MB0GA1UdDgQW
-            BBRp8q/B+zPbWLb7Y3nsU4vLrlB+1zAKBggqhkjOPQQDAgNIADBFAiEAuCLro2sz
-            u483EPJmr87SX/G0Hcfe+Fgx82i9v/hfI2gCIFaIEsPLRvOXmrjXxD5bkYiba++Y
-            cF55aBWQNKOMuAOb
+            BBTlTpey8Mymgj6Rymyrndam13locDAKBggqhkjOPQQDAgNHADBEAiAZOnO3TPxw
+            VMCb4ohAV4mu+6ueis+fLhmi+BB3nm40XAIgEeG7jjAmmBmZ9QEZxUN0Gbor2p9o
+            d5pfT9Vmx657Cxc=
             -----END CERTIFICATE-----
-      serviceAccountTokenProjection: true
     identityProxyResources: null
     identityResources: null
     identityTrustAnchorsPEM: |
       -----BEGIN CERTIFICATE-----
-      MIIBiDCCAS6gAwIBAgIBATAKBggqhkjOPQQDAjAcMRowGAYDVQQDExFpZGVudGl0
-      eS5saW5rZXJkLjAeFw0yMjAzMjcxNDM3NDVaFw0yMzAzMjcxNDM4MDVaMBwxGjAY
+      MIIBhzCCAS6gAwIBAgIBATAKBggqhkjOPQQDAjAcMRowGAYDVQQDExFpZGVudGl0
+      eS5saW5rZXJkLjAeFw0yMjA1MjEyMDEwNTNaFw0yMzA1MjEyMDExMTNaMBwxGjAY
       BgNVBAMTEWlkZW50aXR5LmxpbmtlcmQuMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcD
-      QgAEYiR07is8ydJD4BRVpWCm5Se7H3CzvBlRRYeaIrNx9Na7bIMQISs7yiZDty3b
-      +j/jEiRMBm4qwGa2ON9UcmSUyqNhMF8wDgYDVR0PAQH/BAQDAgEGMB0GA1UdJQQW
+      QgAEJJIEBUpKEw2jpM1mjg8AC7qKCP/5lnovP/1MiTeL5BOKIu5wFP6cy8hkpq6+
+      9o42FKJiIIolGEl1yh+myYPBHqNhMF8wDgYDVR0PAQH/BAQDAgEGMB0GA1UdJQQW
       MBQGCCsGAQUFBwMBBggrBgEFBQcDAjAPBgNVHRMBAf8EBTADAQH/MB0GA1UdDgQW
-      BBRp8q/B+zPbWLb7Y3nsU4vLrlB+1zAKBggqhkjOPQQDAgNIADBFAiEAuCLro2sz
-      u483EPJmr87SX/G0Hcfe+Fgx82i9v/hfI2gCIFaIEsPLRvOXmrjXxD5bkYiba++Y
-      cF55aBWQNKOMuAOb
+      BBTlTpey8Mymgj6Rymyrndam13locDAKBggqhkjOPQQDAgNHADBEAiAZOnO3TPxw
+      VMCb4ohAV4mu+6ueis+fLhmi+BB3nm40XAIgEeG7jjAmmBmZ9QEZxUN0Gbor2p9o
+      d5pfT9Vmx657Cxc=
       -----END CERTIFICATE-----
     identityTrustDomain: cluster.local
     imagePullPolicy: IfNotPresent
     imagePullSecrets: []
-    linkerdVersion: edge-22.3.4
+    installNamespace: true
+    linkerdVersion: stable-2.11.2
+    namespace: linkerd
     nodeSelector:
       kubernetes.io/os: linux
     podAnnotations: {}
@@ -1223,9 +1289,6 @@ data:
         cpu:
           limit: ""
           request: ""
-        ephemeral-storage:
-          limit: ""
-          request: ""
         memory:
           limit: ""
           request: ""
@@ -1233,8 +1296,6 @@ data:
       caBundle: ""
       crtPEM: ""
       externalSecret: false
-      injectCaFrom: ""
-      injectCaFromSecret: ""
       keyPEM: ""
       namespaceSelector:
         matchExpressions:
@@ -1242,13 +1303,10 @@ data:
           operator: NotIn
           values:
           - disabled
-    priorityClassName: ""
     profileValidator:
       caBundle: ""
       crtPEM: ""
       externalSecret: false
-      injectCaFrom: ""
-      injectCaFromSecret: ""
       namespaceSelector:
         matchExpressions:
         - key: config.linkerd.io/admission-webhooks
@@ -1257,15 +1315,15 @@ data:
           - disabled
     prometheusUrl: ""
     proxy:
-      accessLog: ""
       await: true
       capabilities: null
       defaultInboundPolicy: ""
+      disableIdentity: false
       enableExternalProfiles: false
       image:
         name: cr.l5d.io/linkerd/proxy
         pullPolicy: ""
-        version: edge-22.3.4
+        version: stable-2.11.2
       inboundConnectTimeout: 100ms
       isGateway: false
       isIngress: false
@@ -1282,9 +1340,6 @@ data:
       requireIdentityOnInboundPorts: ""
       resources:
         cpu:
-          limit: ""
-          request: ""
-        ephemeral-storage:
           limit: ""
           request: ""
         memory:
@@ -1308,14 +1363,11 @@ data:
       resources:
         cpu:
           limit: 100m
-          request: 100m
-        ephemeral-storage:
-          limit: ""
-          request: ""
+          request: 10m
         memory:
-          limit: 20Mi
-          request: 20Mi
-      runAsRoot: false
+          limit: 50Mi
+          request: 10Mi
+      runAsRoot: true
       saMountPath: null
       skipSubnets: ""
       xtMountPath:
@@ -1326,19 +1378,12 @@ data:
       caBundle: ""
       crtPEM: ""
       externalSecret: false
-      injectCaFrom: ""
-      injectCaFromSecret: ""
       namespaceSelector:
         matchExpressions:
         - key: config.linkerd.io/admission-webhooks
           operator: NotIn
           values:
           - disabled
-        - key: kubernetes.io/metadata.name
-          operator: NotIn
-          values:
-          - kube-system
-          - cert-manager
     proxyInjectorProxyResources: null
     proxyInjectorResources: null
     tolerations: null
@@ -1357,10 +1402,10 @@ metadata:
     linkerd.io/control-plane-component: identity
     linkerd.io/control-plane-ns: linkerd
   annotations:
-    linkerd.io/created-by: linkerd/cli edge-22.3.4
+    linkerd.io/created-by: linkerd/cli stable-2.11.2
 data:
-  crt.pem: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUJpRENDQVM2Z0F3SUJBZ0lCQVRBS0JnZ3Foa2pPUFFRREFqQWNNUm93R0FZRFZRUURFeEZwWkdWdWRHbDAKZVM1c2FXNXJaWEprTGpBZUZ3MHlNakF6TWpjeE5ETTNORFZhRncweU16QXpNamN4TkRNNE1EVmFNQnd4R2pBWQpCZ05WQkFNVEVXbGtaVzUwYVhSNUxteHBibXRsY21RdU1Ga3dFd1lIS29aSXpqMENBUVlJS29aSXpqMERBUWNEClFnQUVZaVIwN2lzOHlkSkQ0QlJWcFdDbTVTZTdIM0N6dkJsUlJZZWFJck54OU5hN2JJTVFJU3M3eWlaRHR5M2IKK2ovakVpUk1CbTRxd0dhMk9OOVVjbVNVeXFOaE1GOHdEZ1lEVlIwUEFRSC9CQVFEQWdFR01CMEdBMVVkSlFRVwpNQlFHQ0NzR0FRVUZCd01CQmdnckJnRUZCUWNEQWpBUEJnTlZIUk1CQWY4RUJUQURBUUgvTUIwR0ExVWREZ1FXCkJCUnA4cS9CK3pQYldMYjdZM25zVTR2THJsQisxekFLQmdncWhrak9QUVFEQWdOSUFEQkZBaUVBdUNMcm8yc3oKdTQ4M0VQSm1yODdTWC9HMEhjZmUrRmd4ODJpOXYvaGZJMmdDSUZhSUVzUExSdk9YbXJqWHhENWJrWWliYSsrWQpjRjU1YUJXUU5LT011QU9iCi0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0=
-  key.pem: LS0tLS1CRUdJTiBFQyBQUklWQVRFIEtFWS0tLS0tCk1IY0NBUUVFSU9iTE9xYnRLUDl1Rm5uOGdVUmJzMloyb1pMdW5MblJlanRsY25iZE1tQUFvQW9HQ0NxR1NNNDkKQXdFSG9VUURRZ0FFWWlSMDdpczh5ZEpENEJSVnBXQ201U2U3SDNDenZCbFJSWWVhSXJOeDlOYTdiSU1RSVNzNwp5aVpEdHkzYitqL2pFaVJNQm00cXdHYTJPTjlVY21TVXlnPT0KLS0tLS1FTkQgRUMgUFJJVkFURSBLRVktLS0tLQ==
+  crt.pem: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUJoekNDQVM2Z0F3SUJBZ0lCQVRBS0JnZ3Foa2pPUFFRREFqQWNNUm93R0FZRFZRUURFeEZwWkdWdWRHbDAKZVM1c2FXNXJaWEprTGpBZUZ3MHlNakExTWpFeU1ERXdOVE5hRncweU16QTFNakV5TURFeE1UTmFNQnd4R2pBWQpCZ05WQkFNVEVXbGtaVzUwYVhSNUxteHBibXRsY21RdU1Ga3dFd1lIS29aSXpqMENBUVlJS29aSXpqMERBUWNEClFnQUVKSklFQlVwS0V3MmpwTTFtamc4QUM3cUtDUC81bG5vdlAvMU1pVGVMNUJPS0l1NXdGUDZjeThoa3BxNisKOW80MkZLSmlJSW9sR0VsMXloK215WVBCSHFOaE1GOHdEZ1lEVlIwUEFRSC9CQVFEQWdFR01CMEdBMVVkSlFRVwpNQlFHQ0NzR0FRVUZCd01CQmdnckJnRUZCUWNEQWpBUEJnTlZIUk1CQWY4RUJUQURBUUgvTUIwR0ExVWREZ1FXCkJCVGxUcGV5OE15bWdqNlJ5bXlybmRhbTEzbG9jREFLQmdncWhrak9QUVFEQWdOSEFEQkVBaUFaT25PM1RQeHcKVk1DYjRvaEFWNG11KzZ1ZWlzK2ZMaG1pK0JCM25tNDBYQUlnRWVHN2pqQW1tQm1aOVFFWnhVTjBHYm9yMnA5bwpkNXBmVDlWbXg2NTdDeGM9Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0=
+  key.pem: LS0tLS1CRUdJTiBFQyBQUklWQVRFIEtFWS0tLS0tCk1IY0NBUUVFSUpmSTZUN1l1aGV2ZXpGU3BFZ0RVOWhpQTBNaVhKWHZPK2wvRnNwS1N1V0VvQW9HQ0NxR1NNNDkKQXdFSG9VUURRZ0FFSkpJRUJVcEtFdzJqcE0xbWpnOEFDN3FLQ1AvNWxub3ZQLzFNaVRlTDVCT0tJdTV3RlA2Ywp5OGhrcHE2KzlvNDJGS0ppSUlvbEdFbDF5aCtteVlQQkhnPT0KLS0tLS1FTkQgRUMgUFJJVkFURSBLRVktLS0tLQ==
 ---
 kind: ConfigMap
 apiVersion: v1
@@ -1371,19 +1416,19 @@ metadata:
     linkerd.io/control-plane-component: identity
     linkerd.io/control-plane-ns: linkerd
   annotations:
-    linkerd.io/created-by: linkerd/cli edge-22.3.4
+    linkerd.io/created-by: linkerd/cli stable-2.11.2
 data:
   ca-bundle.crt: |
     -----BEGIN CERTIFICATE-----
-    MIIBiDCCAS6gAwIBAgIBATAKBggqhkjOPQQDAjAcMRowGAYDVQQDExFpZGVudGl0
-    eS5saW5rZXJkLjAeFw0yMjAzMjcxNDM3NDVaFw0yMzAzMjcxNDM4MDVaMBwxGjAY
+    MIIBhzCCAS6gAwIBAgIBATAKBggqhkjOPQQDAjAcMRowGAYDVQQDExFpZGVudGl0
+    eS5saW5rZXJkLjAeFw0yMjA1MjEyMDEwNTNaFw0yMzA1MjEyMDExMTNaMBwxGjAY
     BgNVBAMTEWlkZW50aXR5LmxpbmtlcmQuMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcD
-    QgAEYiR07is8ydJD4BRVpWCm5Se7H3CzvBlRRYeaIrNx9Na7bIMQISs7yiZDty3b
-    +j/jEiRMBm4qwGa2ON9UcmSUyqNhMF8wDgYDVR0PAQH/BAQDAgEGMB0GA1UdJQQW
+    QgAEJJIEBUpKEw2jpM1mjg8AC7qKCP/5lnovP/1MiTeL5BOKIu5wFP6cy8hkpq6+
+    9o42FKJiIIolGEl1yh+myYPBHqNhMF8wDgYDVR0PAQH/BAQDAgEGMB0GA1UdJQQW
     MBQGCCsGAQUFBwMBBggrBgEFBQcDAjAPBgNVHRMBAf8EBTADAQH/MB0GA1UdDgQW
-    BBRp8q/B+zPbWLb7Y3nsU4vLrlB+1zAKBggqhkjOPQQDAgNIADBFAiEAuCLro2sz
-    u483EPJmr87SX/G0Hcfe+Fgx82i9v/hfI2gCIFaIEsPLRvOXmrjXxD5bkYiba++Y
-    cF55aBWQNKOMuAOb
+    BBTlTpey8Mymgj6Rymyrndam13locDAKBggqhkjOPQQDAgNHADBEAiAZOnO3TPxw
+    VMCb4ohAV4mu+6ueis+fLhmi+BB3nm40XAIgEeG7jjAmmBmZ9QEZxUN0Gbor2p9o
+    d5pfT9Vmx657Cxc=
     -----END CERTIFICATE-----
 ---
 kind: Service
@@ -1395,7 +1440,7 @@ metadata:
     linkerd.io/control-plane-component: identity
     linkerd.io/control-plane-ns: linkerd
   annotations:
-    linkerd.io/created-by: linkerd/cli edge-22.3.4
+    linkerd.io/created-by: linkerd/cli stable-2.11.2
 spec:
   type: ClusterIP
   selector:
@@ -1414,7 +1459,7 @@ metadata:
     linkerd.io/control-plane-component: identity
     linkerd.io/control-plane-ns: linkerd
   annotations:
-    linkerd.io/created-by: linkerd/cli edge-22.3.4
+    linkerd.io/created-by: linkerd/cli stable-2.11.2
 spec:
   clusterIP: None
   selector:
@@ -1428,11 +1473,11 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   annotations:
-    linkerd.io/created-by: linkerd/cli edge-22.3.4
+    linkerd.io/created-by: linkerd/cli stable-2.11.2
   labels:
     app.kubernetes.io/name: identity
     app.kubernetes.io/part-of: Linkerd
-    app.kubernetes.io/version: edge-22.3.4
+    app.kubernetes.io/version: stable-2.11.2
     linkerd.io/control-plane-component: identity
     linkerd.io/control-plane-ns: linkerd
   name: linkerd-identity
@@ -1447,8 +1492,9 @@ spec:
   template:
     metadata:
       annotations:
-        linkerd.io/created-by: linkerd/cli edge-22.3.4
-        linkerd.io/proxy-version: edge-22.3.4
+        linkerd.io/created-by: linkerd/cli stable-2.11.2
+        linkerd.io/identity-mode: default
+        linkerd.io/proxy-version: stable-2.11.2
         config.linkerd.io/default-inbound-policy: "all-unauthenticated"
       labels:
         linkerd.io/control-plane-component: identity
@@ -1472,7 +1518,7 @@ spec:
         env:
         - name: LINKERD_DISABLED
           value: "linkerd-await cannot block the identity controller"
-        image: cr.l5d.io/linkerd/controller:edge-22.3.4
+        image: cr.l5d.io/linkerd/controller:stable-2.11.2
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:
@@ -1492,7 +1538,6 @@ spec:
             port: 9990
         securityContext:
           runAsUser: 2103
-          allowPrivilegeEscalation: false
         volumeMounts:
         - mountPath: /var/run/linkerd/identity/issuer
           name: identity-issuer
@@ -1562,6 +1607,10 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: spec.serviceAccountName
+        - name: _l5d_ns
+          value: linkerd
+        - name: _l5d_trustdomain
+          value: cluster.local
         - name: LINKERD2_PROXY_IDENTITY_DIR
           value: /var/run/linkerd/identity/end-entity
         - name: LINKERD2_PROXY_IDENTITY_TRUST_ANCHORS
@@ -1570,7 +1619,7 @@ spec:
               name: linkerd-identity-trust-roots
               key: ca-bundle.crt
         - name: LINKERD2_PROXY_IDENTITY_TOKEN_FILE
-          value: /var/run/secrets/tokens/linkerd-identity-token
+          value: /var/run/secrets/kubernetes.io/serviceaccount/token
         - name: LINKERD2_PROXY_IDENTITY_SVC_ADDR
           value: localhost.:8080
         - name: LINKERD2_PROXY_IDENTITY_LOCAL_NAME
@@ -1581,7 +1630,7 @@ spec:
           value: linkerd-destination.linkerd.serviceaccount.identity.linkerd.cluster.local
         - name: LINKERD2_PROXY_POLICY_SVC_NAME
           value: linkerd-destination.linkerd.serviceaccount.identity.linkerd.cluster.local
-        image: cr.l5d.io/linkerd/proxy:edge-22.3.4
+        image: cr.l5d.io/linkerd/proxy:stable-2.11.2
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:
@@ -1608,8 +1657,6 @@ spec:
         volumeMounts:
         - mountPath: /var/run/linkerd/identity/end-entity
           name: linkerd-identity-end-entity
-        - mountPath: /var/run/secrets/tokens
-          name: linkerd-identity-token
       initContainers:
       - args:
         - --incoming-proxy-port
@@ -1628,18 +1675,19 @@ spec:
         resources:
           limits:
             cpu: "100m"
-            memory: "20Mi"
+            memory: "50Mi"
           requests:
-            cpu: "100m"
-            memory: "20Mi"
+            cpu: "10m"
+            memory: "10Mi"
         securityContext:
-          allowPrivilegeEscalation: false
+          allowPrivilegeEscalation: true
           capabilities:
             add:
             - NET_ADMIN
             - NET_RAW
           privileged: false
-          runAsNonRoot: true
+          runAsNonRoot: false
+          runAsUser: 0
           readOnlyRootFilesystem: true
         terminationMessagePolicy: FallbackToLogsOnError
         volumeMounts:
@@ -1655,13 +1703,6 @@ spec:
         name: trust-roots
       - emptyDir: {}
         name: linkerd-proxy-init-xtables-lock
-      - name: linkerd-identity-token
-        projected:
-          sources:
-          - serviceAccountToken:
-              path: linkerd-identity-token
-              expirationSeconds: 86400
-              audience: identity.l5d.io
       - emptyDir:
           medium: Memory
         name: linkerd-identity-end-entity
@@ -1678,7 +1719,7 @@ metadata:
     linkerd.io/control-plane-component: destination
     linkerd.io/control-plane-ns: linkerd
   annotations:
-    linkerd.io/created-by: linkerd/cli edge-22.3.4
+    linkerd.io/created-by: linkerd/cli stable-2.11.2
 spec:
   type: ClusterIP
   selector:
@@ -1697,7 +1738,7 @@ metadata:
     linkerd.io/control-plane-component: destination
     linkerd.io/control-plane-ns: linkerd
   annotations:
-    linkerd.io/created-by: linkerd/cli edge-22.3.4
+    linkerd.io/created-by: linkerd/cli stable-2.11.2
 spec:
   clusterIP: None
   selector:
@@ -1716,7 +1757,7 @@ metadata:
     linkerd.io/control-plane-component: destination
     linkerd.io/control-plane-ns: linkerd
   annotations:
-    linkerd.io/created-by: linkerd/cli edge-22.3.4
+    linkerd.io/created-by: linkerd/cli stable-2.11.2
 spec:
   type: ClusterIP
   selector:
@@ -1735,7 +1776,7 @@ metadata:
     linkerd.io/control-plane-component: destination
     linkerd.io/control-plane-ns: linkerd
   annotations:
-    linkerd.io/created-by: linkerd/cli edge-22.3.4
+    linkerd.io/created-by: linkerd/cli stable-2.11.2
 spec:
   clusterIP: None
   selector:
@@ -1754,7 +1795,7 @@ metadata:
     linkerd.io/control-plane-component: destination
     linkerd.io/control-plane-ns: linkerd
   annotations:
-    linkerd.io/created-by: linkerd/cli edge-22.3.4
+    linkerd.io/created-by: linkerd/cli stable-2.11.2
 spec:
   type: ClusterIP
   selector:
@@ -1768,11 +1809,11 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   annotations:
-    linkerd.io/created-by: linkerd/cli edge-22.3.4
+    linkerd.io/created-by: linkerd/cli stable-2.11.2
   labels:
     app.kubernetes.io/name: destination
     app.kubernetes.io/part-of: Linkerd
-    app.kubernetes.io/version: edge-22.3.4
+    app.kubernetes.io/version: stable-2.11.2
     linkerd.io/control-plane-component: destination
     linkerd.io/control-plane-ns: linkerd
   name: linkerd-destination
@@ -1787,8 +1828,10 @@ spec:
   template:
     metadata:
       annotations:
-        linkerd.io/created-by: linkerd/cli edge-22.3.4
-        linkerd.io/proxy-version: edge-22.3.4
+        checksum/config: 1c02c6104d0e46eab9646d2dafb7880a4b120199efde8761b9cee27d0c3a2966
+        linkerd.io/created-by: linkerd/cli stable-2.11.2
+        linkerd.io/identity-mode: default
+        linkerd.io/proxy-version: stable-2.11.2
         config.linkerd.io/default-inbound-policy: "all-unauthenticated"
       labels:
         linkerd.io/control-plane-component: destination
@@ -1861,6 +1904,10 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: spec.serviceAccountName
+        - name: _l5d_ns
+          value: linkerd
+        - name: _l5d_trustdomain
+          value: cluster.local
         - name: LINKERD2_PROXY_IDENTITY_DIR
           value: /var/run/linkerd/identity/end-entity
         - name: LINKERD2_PROXY_IDENTITY_TRUST_ANCHORS
@@ -1869,7 +1916,7 @@ spec:
               name: linkerd-identity-trust-roots
               key: ca-bundle.crt
         - name: LINKERD2_PROXY_IDENTITY_TOKEN_FILE
-          value: /var/run/secrets/tokens/linkerd-identity-token
+          value: /var/run/secrets/kubernetes.io/serviceaccount/token
         - name: LINKERD2_PROXY_IDENTITY_SVC_ADDR
           value: linkerd-identity-headless.linkerd.svc.cluster.local.:8080
         - name: LINKERD2_PROXY_IDENTITY_LOCAL_NAME
@@ -1880,7 +1927,7 @@ spec:
           value: linkerd-destination.linkerd.serviceaccount.identity.linkerd.cluster.local
         - name: LINKERD2_PROXY_POLICY_SVC_NAME
           value: linkerd-destination.linkerd.serviceaccount.identity.linkerd.cluster.local
-        image: cr.l5d.io/linkerd/proxy:edge-22.3.4
+        image: cr.l5d.io/linkerd/proxy:stable-2.11.2
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:
@@ -1913,8 +1960,6 @@ spec:
         volumeMounts:
         - mountPath: /var/run/linkerd/identity/end-entity
           name: linkerd-identity-end-entity
-        - mountPath: /var/run/secrets/tokens
-          name: linkerd-identity-token
       - args:
         - destination
         - -addr=:8086
@@ -1922,12 +1967,12 @@ spec:
         - -enable-h2-upgrade=true
         - -log-level=info
         - -log-format=plain
-        - -enable-endpoint-slices=true
+        - -enable-endpoint-slices=false
         - -cluster-domain=cluster.local
         - -identity-trust-domain=cluster.local
         - -default-opaque-ports=25,587,3306,4444,5432,6379,9300,11211
         - -enable-pprof=false
-        image: cr.l5d.io/linkerd/controller:edge-22.3.4
+        image: cr.l5d.io/linkerd/controller:stable-2.11.2
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:
@@ -1947,13 +1992,12 @@ spec:
             port: 9996
         securityContext:
           runAsUser: 2103
-          allowPrivilegeEscalation: false
       - args:
         - sp-validator
         - -log-level=info
         - -log-format=plain
         - -enable-pprof=false
-        image: cr.l5d.io/linkerd/controller:edge-22.3.4
+        image: cr.l5d.io/linkerd/controller:stable-2.11.2
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:
@@ -1973,7 +2017,6 @@ spec:
             port: 9997
         securityContext:
           runAsUser: 2103
-          allowPrivilegeEscalation: false
         volumeMounts:
         - mountPath: /var/run/linkerd/tls
           name: sp-tls
@@ -1990,7 +2033,7 @@ spec:
         - --default-policy=all-unauthenticated
         - --log-level=linkerd=info,warn
         - --log-format=plain
-        image: cr.l5d.io/linkerd/policy-controller:edge-22.3.4
+        image: cr.l5d.io/linkerd/policy-controller:stable-2.11.2
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:
@@ -2013,7 +2056,6 @@ spec:
         resources:
         securityContext:
           runAsUser: 2103
-          allowPrivilegeEscalation: false
         volumeMounts:
         - mountPath: /var/run/linkerd/tls
           name: policy-tls
@@ -2036,18 +2078,19 @@ spec:
         resources:
           limits:
             cpu: "100m"
-            memory: "20Mi"
+            memory: "50Mi"
           requests:
-            cpu: "100m"
-            memory: "20Mi"
+            cpu: "10m"
+            memory: "10Mi"
         securityContext:
-          allowPrivilegeEscalation: false
+          allowPrivilegeEscalation: true
           capabilities:
             add:
             - NET_ADMIN
             - NET_RAW
           privileged: false
-          runAsNonRoot: true
+          runAsNonRoot: false
+          runAsUser: 0
           readOnlyRootFilesystem: true
         terminationMessagePolicy: FallbackToLogsOnError
         volumeMounts:
@@ -2063,13 +2106,6 @@ spec:
           secretName: linkerd-policy-validator-k8s-tls
       - emptyDir: {}
         name: linkerd-proxy-init-xtables-lock
-      - name: linkerd-identity-token
-        projected:
-          sources:
-          - serviceAccountToken:
-              path: linkerd-identity-token
-              expirationSeconds: 86400
-              audience: identity.l5d.io
       - emptyDir:
           medium: Memory
         name: linkerd-identity-end-entity
@@ -2085,14 +2121,14 @@ metadata:
   labels:
     app.kubernetes.io/name: heartbeat
     app.kubernetes.io/part-of: Linkerd
-    app.kubernetes.io/version: edge-22.3.4
+    app.kubernetes.io/version: stable-2.11.2
     linkerd.io/control-plane-component: heartbeat
     linkerd.io/control-plane-ns: linkerd
   annotations:
-    linkerd.io/created-by: linkerd/cli edge-22.3.4
+    linkerd.io/created-by: linkerd/cli stable-2.11.2
 spec:
   concurrencyPolicy: Replace
-  schedule: "27 13 * * *"
+  schedule: "21 20 * * *"
   successfulJobsHistoryLimit: 0
   jobTemplate:
     spec:
@@ -2102,7 +2138,7 @@ spec:
             linkerd.io/control-plane-component: heartbeat
             linkerd.io/workload-ns: linkerd
           annotations:
-            linkerd.io/created-by: linkerd/cli edge-22.3.4
+            linkerd.io/created-by: linkerd/cli stable-2.11.2
         spec:
           nodeSelector:
             kubernetes.io/os: linux
@@ -2110,7 +2146,7 @@ spec:
           restartPolicy: Never
           containers:
           - name: heartbeat
-            image: cr.l5d.io/linkerd/controller:edge-22.3.4
+            image: cr.l5d.io/linkerd/controller:stable-2.11.2
             imagePullPolicy: IfNotPresent
             env:
             - name: LINKERD_DISABLED
@@ -2123,7 +2159,6 @@ spec:
             - "-prometheus-url=http://prometheus.linkerd-viz.svc.cluster.local:9090"
             securityContext:
               runAsUser: 2103
-              allowPrivilegeEscalation: false
 ---
 ###
 ### Proxy Injector
@@ -2132,11 +2167,11 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   annotations:
-    linkerd.io/created-by: linkerd/cli edge-22.3.4
+    linkerd.io/created-by: linkerd/cli stable-2.11.2
   labels:
     app.kubernetes.io/name: proxy-injector
     app.kubernetes.io/part-of: Linkerd
-    app.kubernetes.io/version: edge-22.3.4
+    app.kubernetes.io/version: stable-2.11.2
     linkerd.io/control-plane-component: proxy-injector
     linkerd.io/control-plane-ns: linkerd
   name: linkerd-proxy-injector
@@ -2149,8 +2184,10 @@ spec:
   template:
     metadata:
       annotations:
-        linkerd.io/created-by: linkerd/cli edge-22.3.4
-        linkerd.io/proxy-version: edge-22.3.4
+        checksum/config: ed846874017f593f3a4cf84daa99e5327ce8e3d6e3630c8f78271de1cb147620
+        linkerd.io/created-by: linkerd/cli stable-2.11.2
+        linkerd.io/identity-mode: default
+        linkerd.io/proxy-version: stable-2.11.2
         config.linkerd.io/opaque-ports: "8443"
         config.linkerd.io/default-inbound-policy: "all-unauthenticated"
       labels:
@@ -2224,6 +2261,10 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: spec.serviceAccountName
+        - name: _l5d_ns
+          value: linkerd
+        - name: _l5d_trustdomain
+          value: cluster.local
         - name: LINKERD2_PROXY_IDENTITY_DIR
           value: /var/run/linkerd/identity/end-entity
         - name: LINKERD2_PROXY_IDENTITY_TRUST_ANCHORS
@@ -2232,7 +2273,7 @@ spec:
               name: linkerd-identity-trust-roots
               key: ca-bundle.crt
         - name: LINKERD2_PROXY_IDENTITY_TOKEN_FILE
-          value: /var/run/secrets/tokens/linkerd-identity-token
+          value: /var/run/secrets/kubernetes.io/serviceaccount/token
         - name: LINKERD2_PROXY_IDENTITY_SVC_ADDR
           value: linkerd-identity-headless.linkerd.svc.cluster.local.:8080
         - name: LINKERD2_PROXY_IDENTITY_LOCAL_NAME
@@ -2243,7 +2284,7 @@ spec:
           value: linkerd-destination.linkerd.serviceaccount.identity.linkerd.cluster.local
         - name: LINKERD2_PROXY_POLICY_SVC_NAME
           value: linkerd-destination.linkerd.serviceaccount.identity.linkerd.cluster.local
-        image: cr.l5d.io/linkerd/proxy:edge-22.3.4
+        image: cr.l5d.io/linkerd/proxy:stable-2.11.2
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:
@@ -2276,15 +2317,12 @@ spec:
         volumeMounts:
         - mountPath: /var/run/linkerd/identity/end-entity
           name: linkerd-identity-end-entity
-        - mountPath: /var/run/secrets/tokens
-          name: linkerd-identity-token
       - args:
         - proxy-injector
         - -log-level=info
         - -log-format=plain
-        - -linkerd-namespace=linkerd
         - -enable-pprof=false
-        image: cr.l5d.io/linkerd/controller:edge-22.3.4
+        image: cr.l5d.io/linkerd/controller:stable-2.11.2
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:
@@ -2304,7 +2342,6 @@ spec:
             port: 9995
         securityContext:
           runAsUser: 2103
-          allowPrivilegeEscalation: false
         volumeMounts:
         - mountPath: /var/run/linkerd/config
           name: config
@@ -2331,18 +2368,19 @@ spec:
         resources:
           limits:
             cpu: "100m"
-            memory: "20Mi"
+            memory: "50Mi"
           requests:
-            cpu: "100m"
-            memory: "20Mi"
+            cpu: "10m"
+            memory: "10Mi"
         securityContext:
-          allowPrivilegeEscalation: false
+          allowPrivilegeEscalation: true
           capabilities:
             add:
             - NET_ADMIN
             - NET_RAW
           privileged: false
-          runAsNonRoot: true
+          runAsNonRoot: false
+          runAsUser: 0
           readOnlyRootFilesystem: true
         terminationMessagePolicy: FallbackToLogsOnError
         volumeMounts:
@@ -2361,13 +2399,6 @@ spec:
           secretName: linkerd-proxy-injector-k8s-tls
       - emptyDir: {}
         name: linkerd-proxy-init-xtables-lock
-      - name: linkerd-identity-token
-        projected:
-          sources:
-          - serviceAccountToken:
-              path: linkerd-identity-token
-              expirationSeconds: 86400
-              audience: identity.l5d.io
       - emptyDir:
           medium: Memory
         name: linkerd-identity-end-entity
@@ -2381,7 +2412,7 @@ metadata:
     linkerd.io/control-plane-component: proxy-injector
     linkerd.io/control-plane-ns: linkerd
   annotations:
-    linkerd.io/created-by: linkerd/cli edge-22.3.4
+    linkerd.io/created-by: linkerd/cli stable-2.11.2
     config.linkerd.io/opaque-ports: "443"
 spec:
   type: ClusterIP
@@ -2394,7 +2425,7 @@ spec:
 ---
 apiVersion: v1
 data:
-  linkerd-config-overrides: aWRlbnRpdHk6CiAgaXNzdWVyOgogICAgdGxzOgogICAgICBjcnRQRU06IHwKICAgICAgICAtLS0tLUJFR0lOIENFUlRJRklDQVRFLS0tLS0KICAgICAgICBNSUlCaURDQ0FTNmdBd0lCQWdJQkFUQUtCZ2dxaGtqT1BRUURBakFjTVJvd0dBWURWUVFERXhGcFpHVnVkR2wwCiAgICAgICAgZVM1c2FXNXJaWEprTGpBZUZ3MHlNakF6TWpjeE5ETTNORFZhRncweU16QXpNamN4TkRNNE1EVmFNQnd4R2pBWQogICAgICAgIEJnTlZCQU1URVdsa1pXNTBhWFI1TG14cGJtdGxjbVF1TUZrd0V3WUhLb1pJemowQ0FRWUlLb1pJemowREFRY0QKICAgICAgICBRZ0FFWWlSMDdpczh5ZEpENEJSVnBXQ201U2U3SDNDenZCbFJSWWVhSXJOeDlOYTdiSU1RSVNzN3lpWkR0eTNiCiAgICAgICAgK2ovakVpUk1CbTRxd0dhMk9OOVVjbVNVeXFOaE1GOHdEZ1lEVlIwUEFRSC9CQVFEQWdFR01CMEdBMVVkSlFRVwogICAgICAgIE1CUUdDQ3NHQVFVRkJ3TUJCZ2dyQmdFRkJRY0RBakFQQmdOVkhSTUJBZjhFQlRBREFRSC9NQjBHQTFVZERnUVcKICAgICAgICBCQlJwOHEvQit6UGJXTGI3WTNuc1U0dkxybEIrMXpBS0JnZ3Foa2pPUFFRREFnTklBREJGQWlFQXVDTHJvMnN6CiAgICAgICAgdTQ4M0VQSm1yODdTWC9HMEhjZmUrRmd4ODJpOXYvaGZJMmdDSUZhSUVzUExSdk9YbXJqWHhENWJrWWliYSsrWQogICAgICAgIGNGNTVhQldRTktPTXVBT2IKICAgICAgICAtLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCiAgICAgIGtleVBFTTogfAogICAgICAgIC0tLS0tQkVHSU4gRUMgUFJJVkFURSBLRVktLS0tLQogICAgICAgIE1IY0NBUUVFSU9iTE9xYnRLUDl1Rm5uOGdVUmJzMloyb1pMdW5MblJlanRsY25iZE1tQUFvQW9HQ0NxR1NNNDkKICAgICAgICBBd0VIb1VRRFFnQUVZaVIwN2lzOHlkSkQ0QlJWcFdDbTVTZTdIM0N6dkJsUlJZZWFJck54OU5hN2JJTVFJU3M3CiAgICAgICAgeWlaRHR5M2Irai9qRWlSTUJtNHF3R2EyT045VWNtU1V5Zz09CiAgICAgICAgLS0tLS1FTkQgRUMgUFJJVkFURSBLRVktLS0tLQppZGVudGl0eVRydXN0QW5jaG9yc1BFTTogfAogIC0tLS0tQkVHSU4gQ0VSVElGSUNBVEUtLS0tLQogIE1JSUJpRENDQVM2Z0F3SUJBZ0lCQVRBS0JnZ3Foa2pPUFFRREFqQWNNUm93R0FZRFZRUURFeEZwWkdWdWRHbDAKICBlUzVzYVc1clpYSmtMakFlRncweU1qQXpNamN4TkRNM05EVmFGdzB5TXpBek1qY3hORE00TURWYU1Cd3hHakFZCiAgQmdOVkJBTVRFV2xrWlc1MGFYUjVMbXhwYm10bGNtUXVNRmt3RXdZSEtvWkl6ajBDQVFZSUtvWkl6ajBEQVFjRAogIFFnQUVZaVIwN2lzOHlkSkQ0QlJWcFdDbTVTZTdIM0N6dkJsUlJZZWFJck54OU5hN2JJTVFJU3M3eWlaRHR5M2IKICArai9qRWlSTUJtNHF3R2EyT045VWNtU1V5cU5oTUY4d0RnWURWUjBQQVFIL0JBUURBZ0VHTUIwR0ExVWRKUVFXCiAgTUJRR0NDc0dBUVVGQndNQkJnZ3JCZ0VGQlFjREFqQVBCZ05WSFJNQkFmOEVCVEFEQVFIL01CMEdBMVVkRGdRVwogIEJCUnA4cS9CK3pQYldMYjdZM25zVTR2THJsQisxekFLQmdncWhrak9QUVFEQWdOSUFEQkZBaUVBdUNMcm8yc3oKICB1NDgzRVBKbXI4N1NYL0cwSGNmZStGZ3g4Mmk5di9oZkkyZ0NJRmFJRXNQTFJ2T1htcmpYeEQ1YmtZaWJhKytZCiAgY0Y1NWFCV1FOS09NdUFPYgogIC0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K
+  linkerd-config-overrides: aWRlbnRpdHk6CiAgaXNzdWVyOgogICAgdGxzOgogICAgICBjcnRQRU06IHwKICAgICAgICAtLS0tLUJFR0lOIENFUlRJRklDQVRFLS0tLS0KICAgICAgICBNSUlCaHpDQ0FTNmdBd0lCQWdJQkFUQUtCZ2dxaGtqT1BRUURBakFjTVJvd0dBWURWUVFERXhGcFpHVnVkR2wwCiAgICAgICAgZVM1c2FXNXJaWEprTGpBZUZ3MHlNakExTWpFeU1ERXdOVE5hRncweU16QTFNakV5TURFeE1UTmFNQnd4R2pBWQogICAgICAgIEJnTlZCQU1URVdsa1pXNTBhWFI1TG14cGJtdGxjbVF1TUZrd0V3WUhLb1pJemowQ0FRWUlLb1pJemowREFRY0QKICAgICAgICBRZ0FFSkpJRUJVcEtFdzJqcE0xbWpnOEFDN3FLQ1AvNWxub3ZQLzFNaVRlTDVCT0tJdTV3RlA2Y3k4aGtwcTYrCiAgICAgICAgOW80MkZLSmlJSW9sR0VsMXloK215WVBCSHFOaE1GOHdEZ1lEVlIwUEFRSC9CQVFEQWdFR01CMEdBMVVkSlFRVwogICAgICAgIE1CUUdDQ3NHQVFVRkJ3TUJCZ2dyQmdFRkJRY0RBakFQQmdOVkhSTUJBZjhFQlRBREFRSC9NQjBHQTFVZERnUVcKICAgICAgICBCQlRsVHBleThNeW1najZSeW15cm5kYW0xM2xvY0RBS0JnZ3Foa2pPUFFRREFnTkhBREJFQWlBWk9uTzNUUHh3CiAgICAgICAgVk1DYjRvaEFWNG11KzZ1ZWlzK2ZMaG1pK0JCM25tNDBYQUlnRWVHN2pqQW1tQm1aOVFFWnhVTjBHYm9yMnA5bwogICAgICAgIGQ1cGZUOVZteDY1N0N4Yz0KICAgICAgICAtLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCiAgICAgIGtleVBFTTogfAogICAgICAgIC0tLS0tQkVHSU4gRUMgUFJJVkFURSBLRVktLS0tLQogICAgICAgIE1IY0NBUUVFSUpmSTZUN1l1aGV2ZXpGU3BFZ0RVOWhpQTBNaVhKWHZPK2wvRnNwS1N1V0VvQW9HQ0NxR1NNNDkKICAgICAgICBBd0VIb1VRRFFnQUVKSklFQlVwS0V3MmpwTTFtamc4QUM3cUtDUC81bG5vdlAvMU1pVGVMNUJPS0l1NXdGUDZjCiAgICAgICAgeThoa3BxNis5bzQyRktKaUlJb2xHRWwxeWgrbXlZUEJIZz09CiAgICAgICAgLS0tLS1FTkQgRUMgUFJJVkFURSBLRVktLS0tLQppZGVudGl0eVRydXN0QW5jaG9yc1BFTTogfAogIC0tLS0tQkVHSU4gQ0VSVElGSUNBVEUtLS0tLQogIE1JSUJoekNDQVM2Z0F3SUJBZ0lCQVRBS0JnZ3Foa2pPUFFRREFqQWNNUm93R0FZRFZRUURFeEZwWkdWdWRHbDAKICBlUzVzYVc1clpYSmtMakFlRncweU1qQTFNakV5TURFd05UTmFGdzB5TXpBMU1qRXlNREV4TVROYU1Cd3hHakFZCiAgQmdOVkJBTVRFV2xrWlc1MGFYUjVMbXhwYm10bGNtUXVNRmt3RXdZSEtvWkl6ajBDQVFZSUtvWkl6ajBEQVFjRAogIFFnQUVKSklFQlVwS0V3MmpwTTFtamc4QUM3cUtDUC81bG5vdlAvMU1pVGVMNUJPS0l1NXdGUDZjeThoa3BxNisKICA5bzQyRktKaUlJb2xHRWwxeWgrbXlZUEJIcU5oTUY4d0RnWURWUjBQQVFIL0JBUURBZ0VHTUIwR0ExVWRKUVFXCiAgTUJRR0NDc0dBUVVGQndNQkJnZ3JCZ0VGQlFjREFqQVBCZ05WSFJNQkFmOEVCVEFEQVFIL01CMEdBMVVkRGdRVwogIEJCVGxUcGV5OE15bWdqNlJ5bXlybmRhbTEzbG9jREFLQmdncWhrak9QUVFEQWdOSEFEQkVBaUFaT25PM1RQeHcKICBWTUNiNG9oQVY0bXUrNnVlaXMrZkxobWkrQkIzbm00MFhBSWdFZUc3ampBbW1CbVo5UUVaeFVOMEdib3IycDlvCiAgZDVwZlQ5Vm14NjU3Q3hjPQogIC0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K
 kind: Secret
 metadata:
   creationTimestamp: null

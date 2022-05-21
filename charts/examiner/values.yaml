@@ -30,3 +30,6 @@ autoscaling:
 
 canary:
   enabled: false
+
+monitoring:
+  namespace: monitoring

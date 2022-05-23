@@ -16,6 +16,6 @@ spec:
   interval: 1m
   values:
     configuration:
-      ECHO_VALUE: Party on! 🥳
+      ECHO_VALUE: Hey, party on! 🥳
     canary:
       enabled: true

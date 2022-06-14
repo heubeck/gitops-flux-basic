@@ -13,7 +13,7 @@ spec:
         kind: GitRepository
         name: flux-system
         namespace: flux-system
-  interval: 1m
+  interval: 10s
   values:
     configuration:
       ECHO_VALUE: Tung R0ckx!

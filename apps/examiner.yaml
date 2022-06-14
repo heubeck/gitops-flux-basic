@@ -13,9 +13,9 @@ spec:
         kind: GitRepository
         name: flux-system
         namespace: flux-system
-  interval: 10s
+  interval: 1m
   values:
     configuration:
-      ECHO_VALUE: Tung R0ckx!
+      ECHO_VALUE: Bernd R0ckx as well!
     canary:
       enabled: true

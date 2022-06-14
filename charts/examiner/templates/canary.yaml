@@ -34,17 +34,17 @@ spec:
         url: http://logger.flagger
     # schedule interval (default 60s)
     interval: 30s
-    # max number of failed metric checks before rollback
-    threshold: 5
-    # max traffic percentage routed to canary
-    # percentage (0-100)
-    maxWeight: 50
     # canary increment step
     # percentage (0-100)
     stepWeight: 5
+    # max traffic percentage routed to canary
+    # percentage (0-100)
+    maxWeight: 50
     # canary decrement step percenate
     stepWeightPromotion: 15
     # Linkerd Prometheus checks
+    # max number of failed metric checks before rollback
+    threshold: 5
     metrics:
     - name: request-success-rate
       # minimum req success rate (non 5xx responses)

@@ -16,6 +16,6 @@ spec:
   interval: 1m
   values:
     configuration:
-      ECHO_VALUE: Bernd R0ckx as well!
+      ECHO_VALUE: Go Flagger go!
     canary:
       enabled: true
